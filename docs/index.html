@@ -21,7 +21,7 @@
     <style>
         /* Basic Reset and Body Styling */
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             line-height: 1.7;
             color: #333;
             background-color: #fdfdfd;
@@ -71,19 +71,28 @@
             display: flex;
             justify-content: center;
             gap: 15px;
+            flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
         }
         .links a {
             text-decoration: none;
             color: #fff;
-            background-color: #007bff;
+            background-color: #007bff; /* Original blue */
             padding: 10px 20px;
             border-radius: 5px;
             font-weight: 600;
             transition: background-color 0.3s;
         }
         .links a:hover {
-            background-color: #0056b3;
+            background-color: #0056b3; /* Darker blue on hover */
         }
+        /* Style for the 'black' buttons */
+        .links a.black-button {
+            background-color: #333; /* Dark grey/black */
+        }
+        .links a.black-button:hover {
+            background-color: #000; /* Pure black on hover */
+        }
+
 
         /* Main Article Content */
         article h3 {
@@ -168,8 +177,10 @@
             </div>
 
             <div class="links">
-                <a href="[LINK_TO_PAPER]" target="_blank">Paper</a>
-                <a href="[LINK_TO_CODE]" target="_blank">Code</a>
+                <a href="[LINK_TO_PAPER]" target="_blank" class="black-button">Paper</a>
+                <a href="[LINK_TO_CODE]" target="_blank" class="black-button">Code</a>
+                <a href="[LINK_TO_DREAM]" target="_blank" class="black-button">D2F-Dream</a>
+                <a href="[LINK_TO_LLADA]" target="_blank" class="black-button">D2F-LLaDA</a>
             </div>
         </header>
 
