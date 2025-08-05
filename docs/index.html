@@ -1,1 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Introducing Discrete Diffusion Forcing (D2F), a novel hybrid paradigm that enables Diffusion LLMs to surpass autoregressive models in inference speed for the first time, achieving up to 50x acceleration.">
+    
+    <!-- Open Graph meta tags for social sharing -->
+    <meta property="og:title" content="D2F: Making Diffusion LLMs Finally Faster Than Autoregressive Models">
+    <meta property="og:description" content="A novel hybrid paradigm that enables Diffusion LLMs to surpass autoregressive models in inference speed.">
+    <meta property="og:type" content="article">
+    <meta property="og:image" content="assets/img/d2f/fig1_main_result.png"> <!-- Make sure this path is correct -->
 
+    <title>D2F: Making Diffusion LLMs Finally Faster Than Autoregressive Models</title>
+    
+    <!-- Google Fonts for a clean, modern look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Basic Reset and Body Styling */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.7;
+            color: #333;
+            background-color: #fdfdfd;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* Main Content Container */
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+
+        /* Header and Title */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 0.5em;
+            color: #1a1a1a;
+        }
+
+        /* Author and Affiliation Styling */
+        .authors {
+            font-size: 1.1em;
+            color: #555;
+            margin-bottom: 20px;
+        }
+        .authors span {
+            display: block;
+            margin-top: 5px;
+            font-style: italic;
+            font-size: 0.9em;
+            color: #777;
+        }
+
+        /* Quick Links / Buttons */
+        .links {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .links a {
+            text-decoration: none;
+            color: #fff;
+            background-color: #007bff;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        .links a:hover {
+            background-color: #0056b3;
+        }
+
+        /* Main Article Content */
+        article h3 {
+            font-size: 1.8em;
+            font-weight: 600;
+            margin-top: 2.5em;
+            margin-bottom: 1em;
+            color: #222;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+
+        p, ol, ul {
+            font-size: 1.1em;
+            margin-bottom: 1.5em;
+        }
+        
+        strong {
+            font-weight: 600;
+            color: #000;
+        }
+
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        ol {
+            padding-left: 20px;
+        }
+        
+        li {
+            margin-bottom: 0.8em;
+        }
+
+        /* Figure and Image Styling */
+        figure {
+            margin: 40px 0;
+            text-align: center;
+        }
+        figure img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 1px solid #eee;
+        }
+        figcaption {
+            margin-top: 15px;
+            font-size: 0.95em;
+            color: #666;
+            font-style: italic;
+        }
+
+        /* Code Block for Citation */
+        pre {
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+        }
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.9em;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>D2F: Making Diffusion LLMs Finally Faster Than Autoregressive Models</h1>
+            
+            <div class="authors">
+                name 1, name 2, and name 3
+                <span>Shanghai Jiao Tong University</span>
+            </div>
+
+            <div class="links">
+                <a href="[LINK_TO_PAPER]" target="_blank">Paper</a>
+                <a href="[LINK_TO_CODE]" target="_blank">Code</a>
+            </div>
+        </header>
+
+        <article>
+            <p>Diffusion Large Language Models (DLLMs) have long promised a new era of text generation, with the ability to decode multiple tokens in parallel. However, in practice, open-source DLLMs have consistently lagged behind their autoregressive (AR) counterparts like LLaMA3 in terms of inference speed. This has been a major barrier to their real-world adoption.</p>
+
+            <p>Today, we are excited to introduce <strong>Discrete Diffusion Forcing (D2F)</strong>, a simple and effective strategy that breaks this speed barrier. D2F reframes DLLMs into a highly efficient AR-diffusion hybrid model, achieving a <strong>2.5x speedup over leading AR models</strong> and a staggering <strong>50x acceleration over vanilla DLLMs</strong>, all while maintaining comparable generation quality.</p>
+            
+            <figure>
+                <img src="assets/img/d2f/fig1_main_result.png" alt="Bar chart comparing inference throughput of D2F with other DLLMs and AR models.">
+                <figcaption>D2F is the first open-source DLLM to surpass similarly-sized AR models like LLaMA3 and Qwen2.5 in inference throughput (Tokens/Second).</figcaption>
+            </figure>
+
+            <h3>The Core Problem: Why Were Diffusion LLMs Slow?</h3>
+            <p>The promise of DLLMs lies in parallel decoding, but two fundamental bottlenecks have hindered their speed:</p>
+            <ol>
+                <li><strong>KV Cache Incompatibility:</strong> Standard DLLMs use bidirectional attention, which looks at the entire sequence at once. This prevents them from using the Key-Value (KV) Cache, a critical optimization in AR models that avoids recomputing attention for past tokens.</li>
+                <li><strong>Strict Sequential Dependencies:</strong> Previous attempts to enable caching by generating in blocks still required each block to be fully decoded before starting the next, severely limiting the potential for parallelism.</li>
+            </ol>
+
+            <h3>The D2F Solution: An AR-Diffusion Hybrid Paradigm</h3>
+            <p>D2F introduces a novel generation process that combines the best of both worlds: the caching efficiency of AR models and the parallel decoding power of diffusion models. This is achieved through three key innovations:</p>
+
+            <h4>1. Block-wise Generation with Causal Attention</h4>
+            <p>D2F restructures generation into a block-autoregressive process. The text is divided into sequential blocks. While attention <em>within</em> each block remains bidirectional (allowing for rich local context), attention <em>between</em> blocks is made <strong>causally-masked</strong>. This simple but powerful change makes D2F fully compatible with standard KV caching, as the KV states of fully-decoded blocks can be reused without recomputation.</p>
+
+            <h4>2. Asymmetric Distillation for Efficient Training</h4>
+            <p>How do we train a model with this new hybrid attention structure? Instead of training from scratch, D2F uses <strong>asymmetric distillation</strong>. We take a pre-trained, open-source DLLM (the "teacher") and distill its knowledge into a new "student" model (the D2F model).</p>
+            <ul>
+                <li>The <strong>teacher</strong> model has a global, bidirectional view of the entire noisy sequence.</li>
+                <li>The <strong>student</strong> model is trained to predict the same output but with a block-wise causal view, learning to predict the next block based on the preceding ones.</li>
+            </ul>
+            <p>This allows us to efficiently create a powerful D2F model in just a few hours of training (e.g., 12 hours on 8 A100 GPUs).</p>
+
+            <figure>
+                <img src="assets/img/d2f/fig3_overview.png" alt="Diagram showing the asymmetric distillation process for D2F.">
+                <figcaption>Overview of the D2F training process. The student model with block-wise causal attention is distilled from a pre-trained teacher model with full bidirectional attention.</figcaption>
+            </figure>
+
+            <h4>3. Pipelined Parallel Decoding</h4>
+            <p>This is where D2F truly shines. D2F is trained to predict a future block based on a <strong>partially denoised</strong> prefix. This means we don't have to wait for one block to be perfect before we start working on the next one.</p>
+            <p>During inference, this enables a <strong>pipelined parallel decoding</strong> algorithm. As soon as a preceding block reaches a certain level of completion, a new block is added to the pipeline and decoding begins. This creates an asynchronous workflow where multiple blocks are refined in parallel, maximizing GPU utilization and dramatically increasing throughput.</p>
+
+            <figure>
+                <img src="assets/img/d2f/fig4_pipeline.png" alt="Visualization of the pipelined parallel decoding workflow.">
+                <figcaption>Visualization of D2F's pipelined decoding. New blocks are dynamically added and decoded in parallel as their predecessors become more complete, enabling a highly efficient, asynchronous workflow.</figcaption>
+            </figure>
+
+            <h3>Performance Highlights: Speed and Quality</h3>
+            <p>D2F sets a new standard for DLLM efficiency.</p>
+            <ul>
+                <li><strong>Superior Efficiency Frontier:</strong> D2F operates on a significantly better throughput-performance curve. On GSM8K, D2F achieves <strong>3.1x higher throughput</strong> than LLaMA3 with a slightly better score.</li>
+                <li><strong>Massive Acceleration:</strong> Compared to the original LLaDA-Instruct model, D2F achieves up to <strong>52.9x</strong> speedup on the MBPP benchmark and <strong>29.1x</strong> on HumanEval, with minimal to no loss in accuracy.</li>
+                <li><strong>Consistent Outperformance:</strong> Across mathematical reasoning (GSM8K, MATH) and code generation (HumanEval, MBPP) benchmarks, D2F consistently outperforms previous state-of-the-art acceleration methods for DLLMs, often by a 2-3x margin.</li>
+            </ul>
+
+            <figure>
+                <img src="assets/img/d2f/fig2_tradeoff.png" alt="Graph showing the throughput vs. performance trade-off for D2F and other models.">
+                <figcaption>Throughput vs. Performance trade-off. D2F models (blue) operate on a far more efficient frontier than baseline DLLMs and AR models (stars).</figcaption>
+            </figure>
+
+            <h3>Conclusion</h3>
+            <p>Discrete Diffusion Forcing (D2F) represents a fundamental step forward for diffusion-based language models. By creating a novel AR-diffusion hybrid paradigm, it overcomes the critical inference bottlenecks that have held DLLMs back. For the first time, an open-source DLLM can not only match but significantly <strong>exceed the speed of highly optimized autoregressive models</strong>.</p>
+            <p>This breakthrough makes DLLMs a practical and powerful alternative for a wide range of text generation tasks, paving the way for new applications and further research into efficient, parallel-first language modeling.</p>
+
+            <h3>Citation</h3>
+            <p>If you find our work useful, please consider citing the original paper:</p>
+            <pre><code>@article{d2f_paper_2025,
+  title={Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing},
+  author={name 1 and name 2 and name 3},
+  journal={arXiv preprint},
+  year={2025}
+}</code></pre>
+        </article>
+    </div>
+
+</body>
+</html>
