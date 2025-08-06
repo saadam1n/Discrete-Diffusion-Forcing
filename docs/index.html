@@ -8,132 +8,170 @@
     <!-- Open Graph meta tags for social sharing -->
     <meta property="og:title" content="D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing">
     <meta property="og:description" content="Meet Discrete Diffusion Forcing (D2F), a novel paradigm that makes Diffusion LLMs up to 2.5x faster than leading AR models, finally unlocking their parallel potential.">
-    <meta property="og:image" content="assets/img/d2f/fig1_main_result.png"> <!-- Make sure this path is correct -->
+    <meta property="og:image" content="assets/img/d2f/fig1_main_result.png">
 
     <title>D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing</title>
     
-    <!-- Google Fonts for a clean, modern look -->
+    <!-- Google Fonts: Inter for headings/UI, Lora for body text -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 
     <style>
+        /* CSS Variables for easy theme management */
+        :root {
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --font-serif: 'Lora', 'Georgia', serif;
+            
+            --color-text: #374151; /* Dark gray for body text */
+            --color-heading: #111827; /* Near black for headings */
+            --color-background: #f9fafb; /* Very light gray background */
+            --color-primary: #2563eb; /* A strong, academic blue */
+            --color-primary-hover: #1d4ed8;
+            --color-secondary: #333;
+            --color-secondary-hover: #000;
+            --color-border: #e5e7eb; /* Light border color */
+            --color-subtle-bg: #f3f4f6; /* Background for code blocks */
+        }
+
         /* Basic Reset and Body Styling */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.7;
-            color: #333;
-            background-color: #fdfdfd;
+            font-family: var(--font-serif);
+            line-height: 1.8;
+            color: var(--color-text);
+            background-color: var(--color-background);
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            font-size: 17px; /* A slightly larger base font size for readability */
         }
 
         /* Main Content Container */
         .container {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 0 15px;
+            max-width: 840px;
+            margin: 0 auto;
+            padding: 40px 20px;
         }
 
         /* Header and Title */
         header {
             text-align: center;
-            margin-bottom: 40px;
-            border-bottom: 1px solid #e0e0e0;
-            padding-bottom: 20px;
+            margin-bottom: 60px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--color-border);
         }
 
         h1 {
-            font-size: 2.5em;
-            font-weight: 700;
+            font-family: var(--font-sans);
+            font-size: 2.8em;
+            font-weight: 800;
             margin-bottom: 0.5em;
-            color: #1a1a1a;
+            color: var(--color-heading);
             line-height: 1.2;
+            letter-spacing: -0.5px;
         }
 
         /* Author and Affiliation Styling */
         .authors {
+            font-family: var(--font-sans);
             font-size: 1.1em;
-            color: #555;
-            margin-bottom: 20px;
+            color: var(--color-text);
+            margin: 20px 0 30px;
         }
         .authors span {
             display: block;
-            margin-top: 5px;
+            margin-top: 8px;
+            font-family: var(--font-serif);
             font-style: italic;
-            font-size: 0.9em;
-            color: #777;
+            font-size: 1em;
+            color: #6b7280;
         }
 
         /* Quick Links / Buttons */
         .links {
-            margin-top: 20px;
             display: flex;
             justify-content: center;
-            gap: 15px;
+            gap: 12px;
             flex-wrap: wrap;
         }
         .links a {
+            font-family: var(--font-sans);
             text-decoration: none;
             color: #fff;
-            background-color: #007bff;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 12px 24px;
+            border-radius: 8px;
             font-weight: 600;
-            transition: background-color 0.3s;
+            transition: background-color 0.2s ease-in-out, transform 0.2s ease-in-out;
+            display: inline-block;
         }
         .links a:hover {
-            background-color: #0056b3;
+            transform: translateY(-2px);
         }
         .links a.black-button {
-            background-color: #333;
+            background-color: var(--color-secondary);
         }
         .links a.black-button:hover {
-            background-color: #000;
+            background-color: var(--color-secondary-hover);
+        }
+        /* Overriding the default blue button for consistency, but keeping selector if you want to use it */
+        .links a[href*="arxiv"] {
+             background-color: var(--color-primary);
+        }
+        .links a[href*="arxiv"]:hover {
+             background-color: var(--color-primary-hover);
         }
 
 
         /* Main Article Content */
         h3, h4 {
-            font-weight: 600;
-            color: #222;
+            font-family: var(--font-sans);
+            font-weight: 700;
+            color: var(--color-heading);
+            line-height: 1.3;
         }
 
         h3 {
-            font-size: 1.8em;
-            margin-top: 2.5em;
-            margin-bottom: 1em;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 5px;
+            font-size: 2em;
+            margin-top: 3em;
+            margin-bottom: 1.2em;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--color-primary);
         }
         
         h4 {
-            font-size: 1.4em;
-            margin-top: 2em;
+            font-size: 1.5em;
+            margin-top: 2.5em;
             margin-bottom: 1em;
         }
 
-
         p, ol, ul {
-            font-size: 1.1em;
             margin-bottom: 1.5em;
         }
         
         strong {
             font-weight: 600;
-            color: #000;
+            color: var(--color-heading);
         }
 
         a {
-            color: #007bff;
+            color: var(--color-primary);
             text-decoration: none;
+            transition: color 0.2s;
         }
         a:hover {
+            color: var(--color-primary-hover);
             text-decoration: underline;
         }
         
         ul, ol {
-            padding-left: 25px;
+            padding-left: 30px;
         }
         
         li {
@@ -142,35 +180,50 @@
 
         /* Figure and Image/Video Styling */
         figure {
-            margin: 40px 0;
+            margin: 50px 0;
             text-align: center;
         }
         figure img, figure video {
             max-width: 100%;
             height: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            border: 1px solid #eee;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.07), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--color-border);
         }
         figcaption {
-            margin-top: 15px;
-            font-size: 0.95em;
-            color: #666;
-            line-height: 1.5;
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #6b7280;
+            line-height: 1.6;
+            max-width: 680px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        figcaption b {
+            font-family: var(--font-sans);
+            color: var(--color-text);
+            font-weight: 600;
         }
 
         /* Code Block for Citation */
         pre {
-            background-color: #f4f4f4;
-            padding: 20px;
-            border-radius: 5px;
+            background-color: var(--color-subtle-bg);
+            padding: 25px;
+            border-radius: 8px;
             overflow-x: auto;
-            border: 1px solid #ddd;
+            border: 1px solid var(--color-border);
+            margin-top: 1em;
         }
         code {
             font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.95em;
+            color: var(--color-text);
+        }
+        article p > code { /* Inline code */
+            background-color: var(--color-subtle-bg);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
             font-size: 0.9em;
-            color: #333;
         }
     </style>
 </head>
@@ -181,12 +234,12 @@
             <h1>D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing</h1>
             
             <div class="authors">
-                Xu Wang*, Chenkai Xu*, Yijie Jin, Jiachun Jin, Yanzhe Hu, and Zhijie Deng
+                <strong>Xu Wang*, Chenkai Xu*, Yijie Jin, Jiachun Jin, Yanzhe Hu, and Zhijie Deng</strong>
                 <span>Shanghai Jiao Tong University</span>
             </div>
 
             <div class="links">
-                <a href="https://arxiv.org/abs/2409.11718" target="_blank" class="black-button">Paper</a>
+                <a href="https://arxiv.org/abs/2409.11718" target="_blank">Paper</a>
                 <a href="https://github.com/zhijie-group/Discrete-Diffusion-Forcing" target="_blank" class="black-button">Code</a>
                 <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_Dream_Base_7B_Lora" target="_blank" class="black-button">D2F-Dream</a>
                 <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora" target="_blank" class="black-button">D2F-LLaDA</a>
@@ -259,7 +312,6 @@
             <p>The tables below show a direct comparison of our D2F-enhanced models against their original baselines and previous state-of-the-art (SOTA) acceleration methods.</p>
             
             <figure>
-                <!-- Placeholder for Table 1: LLaDA Results -->
                 <img src="assets/img/d2f/table1_llada_results.png" alt="Table comparing D2F-LLaDA with baseline LLaDA and other acceleration methods.">
                 <figcaption>
                     <b>D2F on LLaDA-Instruct-8B:</b> The results are transformative. D2F achieves up to a <strong>52.9x</strong> speedup on MBPP and <strong>29.1x</strong> on HumanEval over the baseline, while consistently outperforming previous SOTA acceleration methods.
@@ -267,7 +319,6 @@
             </figure>
 
             <figure>
-                <!-- Placeholder for Table 2: Dream Results -->
                 <img src="assets/img/d2f/table2_dream_results.png" alt="Table comparing D2F-Dream with baseline Dream and other acceleration methods.">
                 <figcaption>
                     <b>D2F on Dream-Base-7B:</b> The benefits extend across models. When applied to Dream-Base, D2F delivers a <strong>9.6x</strong> speedup on GSM8K-CoT with a <strong>higher accuracy score</strong>, demonstrating that speed doesn't come at the cost of quality.
