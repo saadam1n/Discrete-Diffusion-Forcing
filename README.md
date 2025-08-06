@@ -1,4 +1,4 @@
-# ⚡ D2F: Faster-Than-AR Inference for Diffusion LLMs
+# ⚡ D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing
 
 <p align="center">
   <a href="https://arxiv.org/abs/..."><b>📄 Paper</b></a> •
