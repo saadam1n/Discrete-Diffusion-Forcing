@@ -11,6 +11,10 @@
 </p>
 
 <p align="center">
+    <img src="docs/assets/img/d2f/fig1_main_result.png" width="800">
+</p>
+
+<p align="center">
   <video width="95%" autoplay loop muted playsinline>
     <source src="docs/assets/video/d2f_vs_ar_demo.mp4" type="video/mp4">
   </video>
@@ -54,19 +58,19 @@ We applied D2F to two popular open-source dLLMs: **LLaDA-Instruct-8B** and **Dre
 
 #### Performance on LLaDA-Instruct-8B
 <p align="center">
-    <img src="docs/assets/img/d2f/table1_llada_results.png" alt="D2F LLaDA-Instruct-8B Performance Table">
+    <img src="docs/assets/img/d2f/table1_llada_results.png" width="800">
 </p>
 <p align="center">
-    <em>On MBPP, D2F-LLaDA achieves a <b>52.9x</b> speedup over the original model. On HumanEval, it is <b>29.1x</b> faster while also achieving a higher score.</em>
+  <em>On MBPP, D2F-LLaDA achieves a <b>52.9x</b> speedup over the original model. On HumanEval, it is <b>29.1x</b> faster while also achieving a higher score.</em>
 </p>
 
 
 #### Performance on Dream-Base-7B
 <p align="center">
-    <img src="docs/assets/img/d2f/table2_dream_results.png" alt="D2F Dream-Base-7B Performance Table">
+    <img src="docs/assets/img/d2f/table2_dream_results.png" width="800">
 </p>
 <p align="center">
-    <em>On GSM8K-CoT, D2F-Dream is <b>9.6x</b> faster than the baseline and also achieves a higher score, demonstrating that speed and quality can improve together.</em>
+  <em>On GSM8K-CoT, D2F-Dream is <b>9.6x</b> faster than the baseline and also achieves a higher score, demonstrating that speed and quality can improve together.</em>
 </p>
 
 ## 🚀 Usage Guide
