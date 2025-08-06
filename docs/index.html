@@ -6,8 +6,8 @@
     <meta name="description" content="Introducing Discrete Diffusion Forcing (D2F), a novel hybrid paradigm that enables Diffusion LLMs to surpass autoregressive models in inference speed for the first time, achieving up to 50x acceleration.">
     
     <!-- Open Graph meta tags for social sharing -->
-    <meta property="og:title" content="D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing">
-    <meta property="og:description" content="A novel hybrid paradigm that enables Diffusion LLMs to surpass autoregressive models in inference speed.">
+    <meta property="og:title" content="D2F: Diffusion LLMs Can Now Outpace Autoregressive Models">
+    <meta property="og:description" content="Meet Discrete Diffusion Forcing (D2F), a novel paradigm that makes Diffusion LLMs up to 2.5x faster than leading AR models, finally unlocking their parallel potential.">
     <meta property="og:image" content="assets/img/d2f/fig1_main_result.png"> <!-- Make sure this path is correct -->
 
     <title>D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing</title>
@@ -48,6 +48,7 @@
             font-weight: 700;
             margin-bottom: 0.5em;
             color: #1a1a1a;
+            line-height: 1.2;
         }
 
         /* Author and Affiliation Styling */
@@ -122,8 +123,8 @@
             text-decoration: underline;
         }
         
-        ol {
-            padding-left: 20px;
+        ul, ol {
+            padding-left: 25px;
         }
         
         li {
@@ -168,15 +169,15 @@
 
     <div class="container">
         <header>
-            <h1>D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing</h1>
+            <h1>D2F: Making Diffusion LLMs Faster Than Autoregressive Models</h1>
             
             <div class="authors">
-                name 1, name 2, and name 3
+                Xu Wang*, Chenkai Xu*, Yijie Jin, Jiachun Jin, Yanzhe Hu, and Zhijie Deng
                 <span>Shanghai Jiao Tong University</span>
             </div>
 
             <div class="links">
-                <a href="[LINK_TO_PAPER]" target="_blank" class="black-button">Paper</a>
+                <a href="https://arxiv.org/abs/..." target="_blank" class="black-button">Paper</a> <!-- TODO: Replace with actual paper link -->
                 <a href="https://github.com/zhijie-group/Discrete-Diffusion-Forcing" target="_blank" class="black-button">Code</a>
                 <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_Dream_Base_7B_Lora" target="_blank" class="black-button">D2F-Dream</a>
                 <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora" target="_blank" class="black-button">D2F-LLaDA</a>
@@ -184,84 +185,86 @@
         </header>
 
         <article>
-            <!-- NEWLY ADDED VIDEO SECTION -->
             <figure>
                 <video width="100%" autoplay loop muted playsinline>
                     <source src="assets/video/d2f_vs_ar_demo.mp4" type="video/mp4">
                     Your browser does not support the video tag. This video shows a side-by-side comparison of D2F and an AR model's generation speed.
                 </video>
                 <figcaption>
-                    Real-time demo comparing the inference speed of D2F (left) and a baseline AR model (right). D2F generates text in parallel blocks, achieving significantly higher throughput.
+                    Real-time demo comparing the inference speed of our D2F-dLLM (left) and a baseline AR model (right). D2F generates text in parallel blocks, achieving significantly higher throughput.
                 </figcaption>
             </figure>
-            <!-- END OF NEWLY ADDED VIDEO SECTION -->
 
-            <p>Diffusion Large Language Models (DLLMs) have long promised a new era of text generation, with the ability to decode multiple tokens in parallel. However, in practice, open-source DLLMs have consistently lagged behind their autoregressive (AR) counterparts like LLaMA3 in terms of inference speed. This has been a major barrier to their real-world adoption.</p>
+            <p>Diffusion Large Language Models (dLLMs) have long promised a new era of text generation with their inherent ability to decode multiple tokens in parallel. However, in practice, open-source dLLMs have consistently lagged behind their autoregressive (AR) counterparts like LLaMA3 in inference speed, creating a major barrier to their adoption.</p>
 
-            <p>Today, we are excited to introduce <strong>Discrete Diffusion Forcing (D2F)</strong>, a simple and effective strategy that breaks this speed barrier. D2F reframes DLLMs into a highly efficient AR-diffusion hybrid model, achieving a <strong>2.5x speedup over leading AR models</strong> and a staggering <strong>50x acceleration over vanilla DLLMs</strong>, all while maintaining comparable generation quality.</p>
+            <p>Today, we are excited to introduce <strong>Discrete Diffusion Forcing (D2F)</strong>, a simple yet powerful strategy that shatters this speed limit. D2F introduces a novel AR-diffusion hybrid paradigm, achieving up to a <strong>2.5x speedup over leading AR models</strong> and a staggering <strong>50x acceleration over vanilla dLLMs</strong>, all while maintaining comparable generation quality.</p>
             
             <figure>
                 <img src="assets/img/d2f/fig1_main_result.png" alt="Bar chart comparing inference throughput of D2F with other DLLMs and AR models.">
-                <figcaption>D2F is the first open-source DLLM to surpass similarly-sized AR models like LLaMA3 and Qwen2.5 in inference throughput (Tokens/Second).</figcaption>
+                <figcaption>D2F is the first open-source dLLM to decisively surpass similarly-sized AR models like LLaMA3 and Qwen2.5 in inference throughput (Tokens/Second).</figcaption>
             </figure>
 
-            <h3>The Core Problem: Why Were Diffusion LLMs Slow?</h3>
-            <p>The promise of DLLMs lies in parallel decoding, but two fundamental bottlenecks have hindered their speed:</p>
-            <ol>
-                <li><strong>KV Cache Incompatibility:</strong> Standard DLLMs use bidirectional attention, which looks at the entire sequence at once. This prevents them from using the Key-Value (KV) Cache, a critical optimization in AR models that avoids recomputing attention for past tokens.</li>
-                <li><strong>Strict Sequential Dependencies:</strong> Previous attempts to enable caching by generating in blocks still required each block to be fully decoded before starting the next, severely limiting the potential for parallelism.</li>
-            </ol>
-
-            <h3>The D2F Solution: An AR-Diffusion Hybrid Paradigm</h3>
-            <p>D2F introduces a novel generation process that combines the best of both worlds: the caching efficiency of AR models and the parallel decoding power of diffusion models. This is achieved through three key innovations:</p>
-
-            <h4>1. Block-wise Generation with Causal Attention</h4>
-            <p>D2F restructures generation into a block-autoregressive process. The text is divided into sequential blocks. While attention <em>within</em> each block remains bidirectional (allowing for rich local context), attention <em>between</em> blocks is made <strong>causally-masked</strong>. This simple but powerful change makes D2F fully compatible with standard KV caching, as the KV states of fully-decoded blocks can be reused without recomputation.</p>
-
-            <h4>2. Asymmetric Distillation for Efficient Training</h4>
-            <p>How do we train a model with this new hybrid attention structure? Instead of training from scratch, D2F uses <strong>asymmetric distillation</strong>. We take a pre-trained, open-source DLLM (the "teacher") and distill its knowledge into a new "student" model (the D2F model).</p>
+            <h3>The Bottleneck: Why Were Diffusion LLMs Slow?</h3>
+            <p>The promise of dLLMs lies in parallel decoding, but two fundamental issues have historically crippled their speed:</p>
             <ul>
-                <li>The <strong>teacher</strong> model has a global, bidirectional view of the entire noisy sequence.</li>
-                <li>The <strong>student</strong> model is trained to predict the same output but with a block-wise causal view, learning to predict the next block based on the preceding ones.</li>
+                <li><strong>KV Cache Incompatibility:</strong> Standard dLLMs rely on <strong>bidirectional attention</strong>, where every token can see every other token. This holistic view is powerful but prevents the use of the Key-Value (KV) Cache, a critical optimization in AR models that saves massive amounts of redundant computation.</li>
+                <li><strong>Strict Inter-Block Dependency:</strong> Early attempts to add caching by generating text in blocks were still inefficient. They required each block to be fully generated before starting the next, eliminating the potential for true parallel processing across blocks.</li>
             </ul>
-            <p>This allows us to efficiently create a powerful D2F model in just a few hours of training (e.g., 12 hours on 8 A100 GPUs).</p>
 
+            <h3>The D2F Solution: A Hybrid of Speed and Power</h3>
+            <p>D2F overcomes these bottlenecks by fundamentally restructuring how dLLMs are trained and how they generate text. Here’s how it works.</p>
+
+            <h4>1. The Architecture: Block-wise AR meets Parallel Diffusion</h4>
+            <p>At its core, D2F transforms the generation process into a <strong>block-autoregressive</strong> framework. Text is generated in sequential blocks. The key architectural change is in the attention mechanism:</p>
+            <ul>
+                <li>Attention <em>within</em> a block remains <strong>bidirectional</strong>, preserving rich local context.</li>
+                <li>Attention <em>between</em> blocks is made <strong>causal</strong>, meaning a block can only attend to previous, completed blocks.</li>
+            </ul>
+            <p>This hybrid design makes D2F fully compatible with the standard KV cache, instantly eliminating a major source of computational redundancy.</p>
+
+            <h4>2. The Method: Asymmetric Distillation and Pipelined Inference</h4>
+            <p>With this new architecture, D2F employs a two-pronged strategy for training and inference:</p>
+            <p><strong>Training with Asymmetric Distillation:</strong> Instead of costly training from scratch, D2F uses an efficient distillation process. We take a powerful pre-trained dLLM (the "teacher") and distill its knowledge into our D2F model (the "student"). The teacher uses its full bidirectional view to make predictions, while the student learns to match those predictions using only its limited, block-wise causal view. This process effectively transfers the teacher's capabilities into a faster, cache-friendly architecture in just a few hours (e.g., 12 hours on 8 A100 GPUs).</p>
+            
             <figure>
                 <img src="assets/img/d2f/fig3_overview.png" alt="Diagram showing the asymmetric distillation process for D2F.">
-                <figcaption>Overview of the D2F training process. The student model with block-wise causal attention is distilled from a pre-trained teacher model with full bidirectional attention.</figcaption>
+                <figcaption>Overview of D2F training: the student model (with block-wise causal attention) learns to mimic a pre-trained teacher model (with full bidirectional attention).</figcaption>
             </figure>
 
-            <h4>3. Pipelined Parallel Decoding</h4>
-            <p>This is where D2F truly shines. D2F is trained to predict a future block based on a <strong>partially denoised</strong> prefix. This means we don't have to wait for one block to be perfect before we start working on the next one.</p>
-            <p>During inference, this enables a <strong>pipelined parallel decoding</strong> algorithm. As soon as a preceding block reaches a certain level of completion, a new block is added to the pipeline and decoding begins. This creates an asynchronous workflow where multiple blocks are refined in parallel, maximizing GPU utilization and dramatically increasing throughput.</p>
+            <p><strong>Inference with a Pipelined Parallel Decoder:</strong> This is where D2F’s speed truly comes from. Because D2F is trained to predict future blocks based on <strong>partially incomplete</strong> previous ones, it doesn't need to wait. During inference, it uses a dynamic pipeline:</p>
+            <ul>
+                <li>A new block is added to the pipeline as soon as its predecessor is only partially complete.</li>
+                <li>Blocks begin in a conservative "semi-activated" state and transition to an aggressive "fully-activated" state once they have sufficient context from the block before them.</li>
+            </ul>
+            <p>This creates a highly efficient, asynchronous workflow where multiple blocks are refined in parallel, maximizing GPU utilization and dramatically boosting throughput.</p>
 
             <figure>
                 <img src="assets/img/d2f/fig4_pipeline.png" alt="Visualization of the pipelined parallel decoding workflow.">
-                <figcaption>Visualization of D2F's pipelined decoding. New blocks are dynamically added and decoded in parallel as their predecessors become more complete, enabling a highly efficient, asynchronous workflow.</figcaption>
+                <figcaption>D2F's pipelined decoding in action. New blocks are added dynamically and decoded in parallel, creating a continuous, high-throughput generation flow.</figcaption>
             </figure>
 
-            <h3>Performance Highlights: Speed and Quality</h3>
-            <p>D2F sets a new standard for DLLM efficiency.</p>
+            <h3>Putting D2F to the Test: Performance Highlights</h3>
+            <p>D2F sets a new standard for dLLM efficiency across multiple benchmarks.</p>
             <ul>
-                <li><strong>Superior Efficiency Frontier:</strong> D2F operates on a significantly better throughput-performance curve. On GSM8K, D2F achieves <strong>3.1x higher throughput</strong> than LLaMA3 with a slightly better score.</li>
-                <li><strong>Massive Acceleration:</strong> Compared to the original LLaDA-Instruct model, D2F achieves up to <strong>52.9x</strong> speedup on the MBPP benchmark and <strong>29.1x</strong> on HumanEval, with minimal to no loss in accuracy.</li>
-                <li><strong>Consistent Outperformance:</strong> Across mathematical reasoning (GSM8K, MATH) and code generation (HumanEval, MBPP) benchmarks, D2F consistently outperforms previous state-of-the-art acceleration methods for DLLMs, often by a 2-3x margin.</li>
+                <li><strong>Superior Efficiency Frontier:</strong> D2F operates on a significantly better throughput-performance curve. On GSM8K, our model achieves <strong>3.1x higher throughput</strong> than LLaMA3 while also attaining a better score.</li>
+                <li><strong>Massive Acceleration:</strong> Compared to its baseline vanilla dLLM, D2F-LLaDA achieves up to a <strong>52.9x</strong> speedup on the MBPP benchmark and <strong>29.1x</strong> on HumanEval, with comparable accuracy.</li>
+                <li><strong>State-of-the-Art Speed:</strong> Across math and code generation benchmarks, D2F consistently outperforms previous SOTA acceleration methods for dLLMs, often by a 2-3x margin in speed.</li>
             </ul>
 
             <figure>
                 <img src="assets/img/d2f/fig2_tradeoff.png" alt="Graph showing the throughput vs. performance trade-off for D2F and other models.">
-                <figcaption>Throughput vs. Performance trade-off. D2F models (blue) operate on a far more efficient frontier than baseline DLLMs and AR models (stars).</figcaption>
+                <figcaption>Throughput vs. Performance trade-off. D2F models (blue data points) operate on a far more efficient frontier than baseline dLLMs and AR models (stars).</figcaption>
             </figure>
 
             <h3>Conclusion</h3>
-            <p>Discrete Diffusion Forcing (D2F) represents a fundamental step forward for diffusion-based language models. By creating a novel AR-diffusion hybrid paradigm, it overcomes the critical inference bottlenecks that have held DLLMs back. For the first time, an open-source DLLM can not only match but significantly <strong>exceed the speed of highly optimized autoregressive models</strong>.</p>
-            <p>This breakthrough makes DLLMs a practical and powerful alternative for a wide range of text generation tasks, paving the way for new applications and further research into efficient, parallel-first language modeling.</p>
+            <p>Discrete Diffusion Forcing (D2F) represents a fundamental leap forward for diffusion-based language models. By forging a novel AR-diffusion hybrid paradigm, it overcomes the critical inference bottlenecks that have long held dLLMs back. For the first time, an open-source dLLM can not only match but significantly <strong>exceed the speed of highly optimized autoregressive models</strong>.</p>
+            <p>This breakthrough establishes dLLMs as a practical, high-performance alternative for a wide range of text generation tasks, paving the way for new applications and further research into efficient, parallel-first language modeling.</p>
 
             <h3>Citation</h3>
-            <p>If you find our work useful, please consider citing the original paper:</p>
-            <pre><code>@article{d2f_paper_2025,
+            <p>If you find our work useful, please consider citing our paper:</p>
+            <pre><code>@article{wang2025d2f,
   title={Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing},
-  author={name 1 and name 2 and name 3},
+  author={Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Hu, Yanzhe and Deng, Zhijie},
   journal={arXiv preprint},
   year={2025}
 }</code></pre>
