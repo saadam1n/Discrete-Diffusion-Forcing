@@ -8,7 +8,6 @@
     <!-- Open Graph meta tags for social sharing -->
     <meta property="og:title" content="D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing">
     <meta property="og:description" content="A novel hybrid paradigm that enables Diffusion LLMs to surpass autoregressive models in inference speed.">
-    <meta property="og:type" content="article">
     <meta property="og:image" content="assets/img/d2f/fig1_main_result.png"> <!-- Make sure this path is correct -->
 
     <title>D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing</title>
@@ -131,12 +130,12 @@
             margin-bottom: 0.8em;
         }
 
-        /* Figure and Image Styling */
+        /* Figure and Image/Video Styling */
         figure {
             margin: 40px 0;
             text-align: center;
         }
-        figure img {
+        figure img, figure video { /* MODIFIED: Applied style to both img and video */
             max-width: 100%;
             height: auto;
             border-radius: 8px;
@@ -185,6 +184,18 @@
         </header>
 
         <article>
+            <!-- NEWLY ADDED VIDEO SECTION -->
+            <figure>
+                <video width="100%" autoplay loop muted playsinline>
+                    <source src="assets/video/d2f_vs_ar_demo.mp4" type="video/mp4">
+                    Your browser does not support the video tag. This video shows a side-by-side comparison of D2F and an AR model's generation speed.
+                </video>
+                <figcaption>
+                    Real-time demo comparing the inference speed of D2F (left) and a baseline AR model (right). D2F generates text in parallel blocks, achieving significantly higher throughput.
+                </figcaption>
+            </figure>
+            <!-- END OF NEWLY ADDED VIDEO SECTION -->
+
             <p>Diffusion Large Language Models (DLLMs) have long promised a new era of text generation, with the ability to decode multiple tokens in parallel. However, in practice, open-source DLLMs have consistently lagged behind their autoregressive (AR) counterparts like LLaMA3 in terms of inference speed. This has been a major barrier to their real-world adoption.</p>
 
             <p>Today, we are excited to introduce <strong>Discrete Diffusion Forcing (D2F)</strong>, a simple and effective strategy that breaks this speed barrier. D2F reframes DLLMs into a highly efficient AR-diffusion hybrid model, achieving a <strong>2.5x speedup over leading AR models</strong> and a staggering <strong>50x acceleration over vanilla DLLMs</strong>, all while maintaining comparable generation quality.</p>
