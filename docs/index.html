@@ -253,7 +253,7 @@
                     Your browser does not support the video tag. This video shows a side-by-side comparison of D2F's parallel generation vs. an AR model's sequential generation.
                 </video>
                 <figcaption>
-                    Real-time demo comparing our D2F-dLLM (left) and a baseline AR model (right). D2F generates text in parallel blocks, achieving significantly higher throughput.
+                    <b>Figure 1.</b> 实时演示我们的D2F模型（左）与自回归模型（右）的对比。D2F以并行的块方式生成文本，实现了显著更高的吞吐量。
                 </figcaption>
             </figure>
 
@@ -263,7 +263,9 @@
             
             <figure>
                 <img src="assets/img/d2f/fig1_main_result.png" alt="Bar chart comparing inference throughput of D2F with other DLLMs and AR models.">
-                <figcaption>D2F is the first open-source dLLM to decisively surpass similarly-sized AR models like LLaMA3 and Qwen2.5 in inference throughput (Tokens/Second).</figcaption>
+                <figcaption>
+                    <b>Figure 2 (来自论文 Figure 1).</b> D2F dLLMs的推理速度（Tokens/Second）首次超越了同等规模的AR模型（如LLaMA3和Qwen2.5），最高可达2.5倍。
+                </figcaption>
             </figure>
 
             <h3>The Bottleneck: Why Were Diffusion LLMs Slow?</h3>
@@ -290,7 +292,9 @@
             
             <figure>
                 <img src="assets/img/d2f/fig3_overview.png" alt="Diagram showing the asymmetric distillation process for D2F.">
-                <figcaption>Overview of D2F training: the student model (with block-wise causal attention) learns to mimic a pre-trained teacher model (with full bidirectional attention).</figcaption>
+                <figcaption>
+                    <b>Figure 3 (来自论文 Figure 3).</b> D2F训练过程概览。我们设计了一个拥有块状因果注意力的“学生”模型，让它学习并模仿一个拥有完全双向注意力的预训练“教师”模型。
+                </figcaption>
             </figure>
 
             <p><strong>Inference with a Pipelined Parallel Decoder:</strong> This is where D2F’s speed truly shines. Because the model is trained to predict future blocks from <strong>partially incomplete</strong> ones, it doesn't need to wait. During inference, it runs a dynamic pipeline:</p>
@@ -302,7 +306,9 @@
 
             <figure>
                 <img src="assets/img/d2f/fig4_pipeline.png" alt="Visualization of the pipelined parallel decoding workflow.">
-                <figcaption>D2F's pipelined decoding in action. New blocks are added dynamically and decoded in parallel, creating a continuous, high-throughput generation flow.</figcaption>
+                <figcaption>
+                    <b>Figure 4 (来自论文 Figure 4).</b> D2F的流水线式并行解码过程。新文本块被动态添加并与其他块并行解码，形成一个连续、高吞吐量的生成流。
+                </figcaption>
             </figure>
 
             <h3>Putting D2F to the Test: Performance Highlights</h3>
@@ -314,14 +320,14 @@
             <figure>
                 <img src="assets/img/d2f/table1_llada_results.png" alt="Table comparing D2F-LLaDA with baseline LLaDA and other acceleration methods.">
                 <figcaption>
-                    <b>D2F on LLaDA-Instruct-8B:</b> The results are transformative. D2F achieves up to a <strong>52.9x</strong> speedup on MBPP and <strong>29.1x</strong> on HumanEval over the baseline, while consistently outperforming previous SOTA acceleration methods.
+                    <b>Table 1 (来自论文 Table 1).</b> 在LLaDA-Instruct-8B上的性能对比。D2F带来了变革性的加速，在MBPP上提速<b>52.9倍</b>，在HumanEval上提速<b>29.1倍</b>，全面超越了以往的SOTA加速方法。
                 </figcaption>
             </figure>
 
             <figure>
                 <img src="assets/img/d2f/table2_dream_results.png" alt="Table comparing D2F-Dream with baseline Dream and other acceleration methods.">
                 <figcaption>
-                    <b>D2F on Dream-Base-7B:</b> The benefits extend across models. When applied to Dream-Base, D2F delivers a <strong>9.6x</strong> speedup on GSM8K-CoT with a <strong>higher accuracy score</strong>, demonstrating that speed doesn't come at the cost of quality.
+                    <b>Table 2 (来自论文 Table 2).</b> 在Dream-Base-7B上的性能对比。D2F同样表现出色，在GSM8K-CoT上实现了<b>9.6倍</b>的加速，同时获得了<b>更高的分数</b>，证明了速度与质量可以兼得。
                 </figcaption>
             </figure>
 
@@ -331,7 +337,9 @@
             
             <figure>
                 <img src="assets/img/d2f/fig2_tradeoff.png" alt="Graph showing the throughput vs. performance trade-off for D2F and other models.">
-                <figcaption>Throughput vs. Performance trade-off. D2F models (blue data points) operate on a far more efficient frontier than baseline dLLMs and AR models (stars).</figcaption>
+                <figcaption>
+                    <b>Figure 5 (来自论文 Figure 2).</b> 吞吐量与性能的权衡。D2F模型（蓝色点）在效率上远超基线dLLMs和AR模型（星形），实现了更优的“速度-性能”曲线。
+                </figcaption>
             </figure>
 
             <h3>Conclusion</h3>
