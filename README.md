@@ -12,12 +12,16 @@
 
 <p align="center">
     <img src="docs/assets/img/d2f/fig1_main_result.png" width="800">
+    <br>
+    <small><b>Inference throughput comparison:</b> D2F dLLMs surpass similarly-sized AR models in inference speed for the first time, achieving up to a <b>2.5x speedup</b> over LLaMA3 and a <b>>50x speedup</b> over vanilla dLLM baselines.</small>
 </p>
 
 <p align="center">
   <video width="95%" autoplay loop muted playsinline>
     <source src="docs/assets/video/d2f_vs_ar_demo.mp4" type="video/mp4">
   </video>
+  <br>
+  <small><b>Real-time generation demo:</b> our D2F model (left) uses parallel block decoding, while the AR baseline (right) generates tokens sequentially. This visualizes the source of D2F's significant throughput advantage.</small>
 </p>
 
 **Discrete Diffusion Forcing (D2F)** is a novel training and inference paradigm that, for the first time, enables open-source Diffusion Language Models (dLLMs) to surpass their autoregressive (AR) counterparts in inference speed. By introducing a highly efficient AR-diffusion hybrid model, D2F achieves:
@@ -44,12 +48,16 @@ D2F overcomes the historical speed bottlenecks of dLLMs (KV Cache incompatibilit
 
 <p align="center">
     <img src="docs/assets/img/d2f/fig3_overview.png" width="800">
+    <br>
+    <small><b>Overview of Discrete Diffusion Forcing (D2F):</b> A D2F model (student) with a KV-cache-friendly block-wise causal attention mask is trained to mimic a powerful, pre-trained bidirectional dLLM (teacher), efficiently inheriting its capabilities.</small>
 </p>
 
 **3. High-Throughput Pipelined Decoding:** D2F is trained to predict future blocks based on *partially incomplete* prefixes. This enables a **pipelined parallel decoding** algorithm during inference, where multiple blocks are refined simultaneously in an asynchronous workflow, maximizing GPU utilization and throughput.
 
 <p align="center">
     <img src="docs/assets/img/d2f/fig4_pipeline.png" width="800">
+    <br>
+    <small><b>Visualization of our pipelined parallel decoding:</b> New blocks are dynamically added and decoded in parallel with their predecessors, moving from a conservative "semi-activated" state to an aggressive "fully-activated" state. This creates a continuous, high-throughput generation flow.</small>
 </p>
 
 ## 📊 Performance Highlights
@@ -59,18 +67,15 @@ We applied D2F to two popular open-source dLLMs: **LLaDA-Instruct-8B** and **Dre
 #### Performance on LLaDA-Instruct-8B
 <p align="center">
     <img src="docs/assets/img/d2f/table1_llada_results.png" width="800">
+    <br>
+    <small>D2F provides transformative speedups for LLaDA-Instruct-8B, achieving a <b>52.9x</b> increase in throughput on MBPP and a <b>29.1x</b> increase on HumanEval while also improving the score.</small>
 </p>
-<p align="center">
-  <em>On MBPP, D2F-LLaDA achieves a <b>52.9x</b> speedup over the original model. On HumanEval, it is <b>29.1x</b> faster while also achieving a higher score.</em>
-</p>
-
 
 #### Performance on Dream-Base-7B
 <p align="center">
     <img src="docs/assets/img/d2f/table2_dream_results.png" width="800">
-</p>
-<p align="center">
-  <em>On GSM8K-CoT, D2F-Dream is <b>9.6x</b> faster than the baseline and also achieves a higher score, demonstrating that speed and quality can improve together.</em>
+    <br>
+    <small>Applying D2F to Dream-Base-7B results in substantial gains, including a <b>9.6x</b> speedup on GSM8K-CoT and a <b>10.1x</b> speedup on MBPP. Notably, performance scores often improve alongside the acceleration.</small>
 </p>
 
 ## 🚀 Usage Guide
