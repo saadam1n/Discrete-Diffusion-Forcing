@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="docs/assets/img/d2f/logo.png" width="100">
+    <img src="docs/assets/img/d2f/logo.png" width="150">
 </p>
 
 # ⚡ D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing
