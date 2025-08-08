@@ -31,6 +31,8 @@
 
 This repository provides the code to reproduce our evaluation results and run generation demos.
 
+## 🔥 News!
+* Aug 8, 2025: We've released the inference code and training pipeline of D2F!
 ## Contents
 - [🤔 How It Works](#-how-it-works)
 - [📊 Performance Highlights](#-performance-highlights)
