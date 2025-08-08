@@ -156,5 +156,5 @@ If you find our work useful for your research, please consider citing our paper:
 Join our WeChat group for discussion and updates!
 
 <p align="center">
-    <img src="docs/assets/img/d2f/wechat.png" width="250">
+    <img src="docs/assets/img/d2f/wechat.jpg" width="400">
 </p>
