@@ -1,11 +1,9 @@
 # ⚡ D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing
 
 <p align="center">
-  <a href="https://arxiv.org/abs/2409.11718"><b>📄 Paper</b></a> •
-  <a href="https://zhijie-group.github.io/Discrete-Diffusion-Forcing/"><b>📝 Blog Post</b></a>
-</p>
-
-<p align="center">
+  <a href="https://arxiv.org/abs/"><b>📄 Paper</b></a> •
+  <a href="https://zhijie-group.github.io/Discrete-Diffusion-Forcing/"><b>📝 Blog Post</b></a> •
+  <a href="https://huggingface.co/spaces/zhijie3/D2F-LLaDA-Instruct-8B"><b>🚀 Online Demo</b></a> •
   <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_Dream_Base_7B_Lora"><b>🤗 D2F-Dream LoRA</b></a> •
   <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora"><b>🤗 D2F-LLaDA LoRA</b></a>
 </p>
@@ -153,3 +151,10 @@ If you find our work useful for your research, please consider citing our paper:
   year={2024}
 }
 ```
+
+## 💬 Join the Community
+Join our WeChat group for discussion and updates!
+
+<p align="center">
+    <img src="docs/assets/img/d2f/wechat.png" width="250">
+</p>
