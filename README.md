@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="docs/assets/img/d2f/logo.png" width="100">
+</p>
+
 # ⚡ D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing
 
 <p align="center">
@@ -5,7 +9,12 @@
   <a href="https://zhijie-group.github.io/Discrete-Diffusion-Forcing/"><b>📝 Blog Post</b></a> •
   <a href="https://huggingface.co/spaces/zhijie3/D2F-LLaDA-Instruct-8B"><b>🚀 Online Demo</b></a> •
   <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_Dream_Base_7B_Lora"><b>🤗 D2F-Dream LoRA</b></a> •
-  <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora"><b>🤗 D2F-LLaDA LoRA</b></a>
+  <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora"><b>🤗 D2F-LLaDA LoRA</b></a> 
+</p>
+
+<p align="center">
+  <a href="https://discord.gg/sU2wwZd2"><b>💬 Discord</b></a> •
+  <a href="docs/assets/img/d2f/wechat.png"><b>💬 Wechat</b></a>
 </p>
 
 <p align="center">
@@ -133,13 +142,16 @@ python generate_llada_demo_block.py
 ```
 You can inspect these files to see how to use the D2F model for inference in your own projects.
 
-## 📚 Todo List
-- [ ] Add support for vllm
+## 📚 Future Works
 
+- [ ] Implement dLLM-suported vLLM
+
+- [ ] Implement dLLM specific decoding kernel with kv cache loading
+
+...
 
 ## 🙏 Acknowledgements
 Our work builds upon the foundations laid by the original **LLaDA** and **Dream** models. We thank their authors for making their work public. We are also grateful for the powerful open-source tools from Hugging Face that made this research possible.
-
 
 ## ©️ Citation
 If you find our work useful for your research, please consider citing our paper:
@@ -151,10 +163,3 @@ If you find our work useful for your research, please consider citing our paper:
   year={2024}
 }
 ```
-
-## 💬 Join the Community
-Join our WeChat group for discussion and updates!
-
-<p align="center">
-    <img src="docs/assets/img/d2f/wechat.jpg" width="400">
-</p>
