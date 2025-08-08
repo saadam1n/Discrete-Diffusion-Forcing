@@ -133,7 +133,7 @@ python generate_llada_demo_block.py
 ```
 You can inspect these files to see how to use the D2F model for inference in your own projects.
 
-## To Do
+## 📚 Todo List
 - [ ] Add support for vllm
 
 
