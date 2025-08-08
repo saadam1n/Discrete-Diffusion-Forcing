@@ -133,6 +133,10 @@ python generate_llada_demo_block.py
 ```
 You can inspect these files to see how to use the D2F model for inference in your own projects.
 
+## To Do
+- [ ] Add support for vllm
+
+
 ## 🙏 Acknowledgements
 Our work builds upon the foundations laid by the original **LLaDA** and **Dream** models. We thank their authors for making their work public. We are also grateful for the powerful open-source tools from Hugging Face that made this research possible.
 
