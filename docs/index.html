@@ -299,6 +299,17 @@
             </figure>
 
             <p><strong>Inference with a Pipelined Parallel Decoder:</strong> This is where D2F’s speed truly shines. Because the model is trained to predict future blocks from <strong>partially incomplete</strong> ones, it doesn't need to wait. During inference, it runs a dynamic pipeline:</p>
+
+            <figure>
+                <video width="100%" autoplay loop muted playsinline>
+                    <source src="assets/video/block_demo.mp4" type="video/mp4">
+                    Your browser does not support the video tag. This video shows a slow-motion demo of internal block generation in D2F.
+                </video>
+                <figcaption>
+                    <b>Figure 3.</b> A slow-motion demonstration of the parallel decoding process within a single block of D2F. Watch as multiple tokens within the block are refined simultaneously, showcasing the efficiency of our approach.
+                </figcaption>
+            </figure>
+
             <ul>
                 <li>A new block is added to the pipeline as soon as its predecessor is only partially complete.</li>
                 <li>Blocks begin in a conservative "semi-activated" state and transition to an aggressive "fully-activated" state once they have enough context from the block before them.</li>
@@ -308,7 +319,7 @@
             <figure>
                 <img src="assets/img/d2f/fig4_pipeline.png" alt="Visualization of the pipelined parallel decoding workflow.">
                 <figcaption>
-                    <b>Figure 3.</b> Visualization of our pipelined parallel decoding algorithm. A dynamic pipeline of blocks is decoded in parallel. New blocks are added once their predecessor is partially complete, and transition from a conservative 'semi-activated' state to an aggressive 'fully-activated' state, maximizing throughput.
+                    <b>Figure 4.</b> Visualization of our pipelined parallel decoding algorithm. A dynamic pipeline of blocks is decoded in parallel. New blocks are added once their predecessor is partially complete, and transition from a conservative 'semi-activated' state to an aggressive 'fully-activated' state, maximizing throughput.
                 </figcaption>
             </figure>
 
@@ -338,7 +349,7 @@
             <figure>
                 <img src="assets/img/d2f/fig2_tradeoff.png" alt="Graph showing the throughput vs. performance trade-off for D2F and other models.">
                 <figcaption>
-                    <b>Figure 4.</b> The throughput-performance trade-off. D2F models (blue data points) establish a far more favorable efficiency curve. Unlike vanilla dLLMs, which see performance plummet at higher speeds, D2F maintains high scores while dramatically increasing throughput, outperforming AR baselines (stars) on both axes.
+                    <b>Figure 5.</b> The throughput-performance trade-off. D2F models (blue data points) establish a far more favorable efficiency curve. Unlike vanilla dLLMs, which see performance plummet at higher speeds, D2F maintains high scores while dramatically increasing throughput, outperforming AR baselines (stars) on both axes.
                 </figcaption>
             </figure>
 
