@@ -2,7 +2,7 @@
     <img src="docs/assets/img/d2f/logo.png" width="150">
 </p>
 
-## ⚡ Discrete Diffusion Forcing (D2F): LLMs Can Do Faster-Than-AR Inference
+## ⚡ Discrete Diffusion Forcing (D2F): dLLMs Can Do Faster-Than-AR Inference
 
 <p align="center">
   <a href="https://arxiv.org/abs/"><b>📄 Paper</b></a> •
