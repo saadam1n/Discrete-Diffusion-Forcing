@@ -73,9 +73,7 @@ D2F overcomes the historical speed bottlenecks of dLLMs (KV Cache incompatibilit
     <small><b>Visualization of our pipelined parallel decoding:</b> New blocks are dynamically added and decoded in parallel with their predecessors, moving from a conservative "semi-activated" state to an aggressive "fully-activated" state. This creates a continuous, high-throughput generation flow.</small>
 </p>
 
-
-
-https://github.com/user-attachments/assets/b3cae427-1916-4f37-844a-bd29bd423773
+https://github.com/user-attachments/assets/41a0176b-e4ae-4f8b-95a6-daed7af2a027
 
 <p align="center">
   <br>
