@@ -17,18 +17,22 @@
   <a href="docs/assets/img/d2f/wechat.png"><b>💬 Wechat</b></a>
 </p>
 
+
+
+https://github.com/user-attachments/assets/d9de6450-68d6-4caf-85c2-c7f384395c42
+
+
+<p align="center">
+  <br>
+  <small><b>Real-time generation demo:</b> our D2F model (left) uses parallel block decoding, while the AR baseline (right) generates tokens sequentially. This visualizes the source of D2F's significant throughput advantage.</small>
+</p>
+
+<hr>
+
 <p align="center">
     <img src="docs/assets/img/d2f/fig1_main_result.png" width="800">
     <br>
     <small><b>Inference throughput comparison:</b> D2F dLLMs surpass similarly-sized AR models in inference speed for the first time, achieving up to a <b>2.5x speedup</b> over LLaMA3 and a <b>>50x speedup</b> over vanilla dLLM baselines.</small>
-</p>
-
-<p align="center">
-  <video width="95%" autoplay loop muted playsinline>
-    <source src="docs/assets/video/d2f_vs_ar_demo.mp4" type="video/mp4">
-  </video>
-  <br>
-  <small><b>Real-time generation demo:</b> our D2F model (left) uses parallel block decoding, while the AR baseline (right) generates tokens sequentially. This visualizes the source of D2F's significant throughput advantage.</small>
 </p>
 
 **Discrete Diffusion Forcing (D2F)** is a novel training and inference paradigm that, for the first time, enables open-source Diffusion Language Models (dLLMs) to surpass their autoregressive (AR) counterparts in inference speed. By introducing a highly efficient AR-diffusion hybrid model, D2F achieves:
