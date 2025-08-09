@@ -76,7 +76,18 @@
             color: var(--color-heading);
             line-height: 1.2;
             letter-spacing: -0.5px;
+            display: flex; /* Use flexbox for horizontal alignment */
+            align-items: center; /* Vertically center items */
+            justify-content: center; /* Horizontally center content */
+            gap: 15px; /* Space between logo and text */
         }
+
+        h1 .logo {
+            height: 1em; /* Adjust based on font size of h1 for relative sizing */
+            width: auto;
+            vertical-align: middle; /* Ensures it aligns well with text baseline */
+        }
+
 
         /* Author and Affiliation Styling */
         .authors {
@@ -230,7 +241,7 @@
 
     <div class="container">
         <header>
-            <h1>D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing</h1>
+            <h1><img src="assets/img/d2f/logo.png" alt="D2F Logo" class="logo">D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing</h1>
             
             <div class="authors">
                 <strong>Xu Wang*, Chenkai Xu*, Yijie Jin, Jiachun Jin, Hao Zhang, Zhijie Deng<sup>†</sup></strong>
