@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/sU2wwZd2"><b>💬 Discord</b></a> •
+  <a href="https://discord.gg/aDWgxT6S2q"><b>💬 Discord</b></a> •
   <a href="docs/assets/img/d2f/wechat.png"><b>💬 Wechat</b></a>
 </p>
 
