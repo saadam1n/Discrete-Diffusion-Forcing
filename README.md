@@ -5,7 +5,7 @@
 ## Discrete Diffusion Forcing (D2F): dLLMs Can Do Faster-Than-AR Inference
 
 <p align="center">
-  <a href="https://arxiv.org/abs/"><b>📄 Paper</b></a> •
+  <a href="Discrete Diffusion Forcing.pdf"><b>📄 Paper</b></a> •
   <a href="https://zhijie-group.github.io/Discrete-Diffusion-Forcing/"><b>📝 Blog Post</b></a> •
   <a href="https://huggingface.co/spaces/zhijie3/D2F-LLaDA-Instruct-8B"><b>🚀 Online Demo</b></a> •
   <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_Dream_Base_7B_Lora"><b>🤗 D2F-Dream LoRA</b></a> •
@@ -32,7 +32,7 @@ https://github.com/user-attachments/assets/d9de6450-68d6-4caf-85c2-c7f384395c42
 <p align="center">
     <img src="docs/assets/img/d2f/fig1_main_result.png" width="800">
     <br>
-    <small><b>Inference throughput comparison:</b> D2F dLLMs surpass similarly-sized AR models in inference speed for the first time, achieving up to a <b>2.5x speedup</b> over LLaMA3 and a <b>>50x speedup</b> over vanilla dLLM baselines.</small>
+    <small><b>Inference throughput comparison:</b> D2F dLLMs surpass similarly-sized AR models in inference speed for the first time, achieving up to a <b>2.5x speedup</b> over LLaMA3 and a <b>>50x speedup</b> over vanilla dLLM baselines. (Speed tests conducted on NVIDIA A100-PCIe-40GB GPUs)</small>
 </p>
 
 **Discrete Diffusion Forcing (D2F)** is a novel training and inference paradigm that, for the first time, enables open-source Diffusion Language Models (dLLMs) to surpass their autoregressive (AR) counterparts in inference speed. By introducing a highly efficient AR-diffusion hybrid model, D2F achieves:
