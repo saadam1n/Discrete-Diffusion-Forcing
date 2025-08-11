@@ -104,11 +104,21 @@ We applied D2F to two popular open-source dLLMs: **LLaDA-Instruct-8B** and **Dre
 
 First, clone the repository and set up the environment.
 
-```bash
+```shell
 # Clone the repository
 git clone https://github.com/zhijie-group/Discrete-Diffusion-Forcing.git
 cd Discrete-Diffusion-Forcing
+```
 
+#### UV (Recommanded)
+
+```shell
+uv sync
+```
+
+#### Conda 
+
+```shell
 # Create and activate a conda environment
 conda create -n d2f python=3.10
 conda activate d2f
@@ -117,26 +127,30 @@ conda activate d2f
 pip install -r requirements.txt
 ```
 
+
 ### 2. Evaluation
 All evaluation scripts are located in the `D2F-eval` directory.
 
-```bash
+```shell
 cd D2F-eval
 ```
+
 To evaluate the **D2F-Dream** model on all benchmarks, run:
-```bash
-bash eval_dream.sh
+
+```shell
+shell eval_dream.sh
 ```
 
 To evaluate the **D2F-LLaDA** model on all benchmarks, run:
-```bash
-bash eval_llada.sh
+
+```shell
+shell eval_llada.sh
 ```
 The results will be saved in the `output_path` specified within the shell scripts.
 
 > ### ❗️ Important Notice for HumanEval
 > The `HumanEval` benchmark requires a post-processing step to sanitize the generated code and calculate the final `pass@1` score. After the evaluation script finishes, run the following command:
-> ```bash
+> ```shell
 > python postprocess_code.py {path/to/your/samples_humaneval_xxx.jsonl}
 > ```
 > Replace the path with the actual path to your generated samples file, which can be found in the specified `output_path`.
@@ -144,7 +158,7 @@ The results will be saved in the `output_path` specified within the shell script
 ### 3. Generation Demo
 
 We provide simple scripts to demonstrate the generation process and compare D2F with a standard AR baseline.
-```bash
+```shell
 # To run a demo with the baseline AR generation method:
 python generate_llada_demo_ar.py
 
