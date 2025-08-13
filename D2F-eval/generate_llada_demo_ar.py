@@ -24,6 +24,7 @@ from model_cache.llada.configuration_llada import LLaDAConfig
 def set_seed(seed):
     torch.manual_seed(seed); random.seed(seed); np.random.seed(seed);
     if torch.cuda.is_available(): torch.cuda.manual_seed_all(seed); torch.backends.cudnn.deterministic = True; torch.backends.cudnn.benchmark = False
+    
 def create_full_block_attention_mask(prompt_length, max_length, block_size, device=None, dtype=None):
     if dtype is None: dtype = torch.bfloat16
     attention_mask = torch.full((1, 1, max_length, max_length), -torch.inf, device=device, dtype=dtype)
@@ -38,12 +39,14 @@ def create_full_block_attention_mask(prompt_length, max_length, block_size, devi
             attention_mask[:, :, block_start:block_end, prev_start:prev_end] = 0
         attention_mask[:, :, block_start:block_end, block_start:block_end] = 0
     return attention_mask
+    
 def extract_attention_mask(full_mask, start_pos, input_length, cache_length):
     end_pos = start_pos + input_length; total_length = cache_length + input_length
     extracted_mask = torch.full((1, 1, input_length, total_length), -torch.inf, device=full_mask.device, dtype=full_mask.dtype)
     extracted_mask[:, :, :, :cache_length] = full_mask[:, :, start_pos:end_pos, :cache_length]
     extracted_mask[:, :, :, cache_length:] = full_mask[:, :, start_pos:end_pos, start_pos:end_pos]
     return extracted_mask
+    
 def top_p_logits(logits, top_p=None):
     sorted_logits, sorted_indices = torch.sort(logits, descending=True)
     cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
@@ -54,11 +57,13 @@ def top_p_logits(logits, top_p=None):
     mask = mask.scatter_(-1, sorted_indices, sorted_indices_to_remove)
     logits = logits.masked_fill(mask, torch.finfo(logits.dtype).min)
     return logits
+    
 def top_k_logits(logits, top_k=None):
     top_k = min(top_k, logits.size(-1))
     indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
     logits = logits.masked_fill(indices_to_remove, torch.finfo(logits.dtype).min)
     return logits
+    
 def sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, margin_confidence=False, neg_entropy=False):
     if temperature > 0: logits = logits / temperature
     if top_p is not None and top_p < 1: logits = top_p_logits(logits, top_p)
