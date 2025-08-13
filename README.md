@@ -497,6 +497,48 @@ We applied D2F to two popular open-source dLLMs: **LLaDA-Instruct-8B** and **Dre
 <small>Applying D2F to Dream-Base-7B results in substantial gains, including a <b>9.6x</b> speedup on GSM8K-CoT and a <b>10.1x</b> speedup on MBPP. Notably, performance scores often improve alongside the acceleration.</small>
 </center>
 
+### Demo Results of vLLM
+
+We tested the performance of our implemented vLLM (initial version). While there was significant performance improvement, we observed an unexpected decrease in inference scores.
+
+<strong>HumanEval-0-shot</strong>
+<table style="width:100%; border-collapse: collapse; text-align: center;">
+  <thead style="background-color:#f2f2f2;">
+    <tr>
+      <th style="padding: 8px; border: 1px solid #ddd;">Thresholds (Add, Act, Conf)</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>0.1, 0.9, 0.95</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>127.2 <font color="green">(6.3x)</font></strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>1.87 <font color="green">(6.74x)</font></strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">238</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">34.1</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>0.05, 0.95, 0.9</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>131.7 <font color="green">(6.5x)</font></strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>1.78 <font color="green">(7.08x)</font></strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">234</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">40.2</td>
+    </tr>
+  </tbody>
+</table>
+
+> ​​Implementation Notes​​:
+> 
+> The current vLLM implementation does not include:
+> - Specialized optimized operators for existing decoding paradigms
+> - CUDA Graph Capturing
+> - Multi-GPU distributed inference
+> 
+> For convenience, we used Flex Attention to enable efficient inference. Even with full GPU memory utilization, the GPU occupancy rate remains suboptimal, indicating substantial room for engine optimization. Nevertheless, significant performance gains have already been achieved.
+
 ## 🚀 Usage Guide
 
 ### 1. Installation
@@ -509,13 +551,15 @@ git clone https://github.com/zhijie-group/Discrete-Diffusion-Forcing.git
 cd Discrete-Diffusion-Forcing
 ```
 
-#### UV (Recommanded)
+#### Environment Configuration
+
+##### UV (Recommended)
 
 ```shell
 uv sync
 ```
 
-#### Conda 
+##### Conda 
 
 ```shell
 # Create and activate a conda environment
@@ -526,6 +570,9 @@ conda activate d2f
 pip install -r requirements.txt
 ```
 
+#### vLLM Installation
+
+vLLM is comming soon, right now we only implemented the basic functions of vLLM.
 
 ### 2. Evaluation
 All evaluation scripts are located in the `D2F-eval` directory.
@@ -568,9 +615,13 @@ You can inspect these files to see how to use the D2F model for inference in you
 
 ## 📚 Future Works
 
-- [ ] Implement dLLM-suported vLLM
+- [x] Implement dLLM-suported vLLM.
 
-- [ ] Implement dLLM specific decoding kernel with kv cache loading
+- [ ] Implement fused dLLM specific decoding kernel with kv cache loading for vLLM.
+
+- [ ] Implement distributed inference with multi-gpus in vLLM.
+
+- [ ] Implement CUDA graph capturing for dynamic sequence decoding for dLLMs in vLLM.
 
 ...
 
@@ -583,7 +634,7 @@ If you find our work useful for your research, please consider citing our paper:
 @misc{wang2025d2f,
   title        = {Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing},
   author       = {Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Hu, Yanzhe and Deng, Zhijie},
-  year         = {2024},
+  year         = {2025},
   howpublished = {\url{https://github.com/zhijie-group/Discrete-Diffusion-Forcing/blob/main/Discrete%20Diffusion%20Forcing.pdf}},
   note         = {Accessed: 2025-08-13}
 }
