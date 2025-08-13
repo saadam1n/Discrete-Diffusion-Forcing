@@ -267,6 +267,27 @@
             border-radius: 4px;
             font-size: 0.9em;
         }
+        /* Implementation Notes block */
+        .note-block {
+            background: var(--color-subtle-bg);
+            border: 1px solid var(--color-border);
+            padding: 20px 22px;
+            border-radius: 8px;
+            font-family: var(--font-sans);
+            font-size: 0.95em;
+            line-height: 1.6;
+            margin: 2em 0;
+        }
+        .note-block h5 {
+            margin-top: 0;
+            font-size: 1.05em;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        .note-block ul {
+            margin-top: 0.5em;
+        }
     </style>
 </head>
 <body>
@@ -423,7 +444,62 @@
                     <tr><td><strong>D2F-Dream</strong></td><td><strong>105 <span class="speedup">(10.1x)</span></strong></td><td><strong>2.3 <span class="speedup">(10.7x)</span></strong></td><td>240</td><td>55.2</td></tr>
                 </tbody>
             </table>
+            
+            <h5>Demo Results of vLLM on HumanEval</h5>
 
+            We tested the performance of our implemented vLLM (initial version). While there was significant performance improvement, we observed an unexpected decrease in inference scores.
+
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Model & Thresholds (Add, Act, Conf)</th>
+                        <th>TPS ↑</th>
+                        <th>Latency (s) ↓</th>
+                        <th>Gen. Length</th>
+                        <th>Score ↑</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Dream-Base (0.1, 0.9, 0.95)</td>
+                        <td>20.2 <span class="speedup">(1.0x)</span></td>
+                        <td>12.6 <span class="speedup">(1.0x)</span></td>
+                        <td>255</td>
+                        <td>54.3</td>
+                    </tr>
+                    <tr>
+                        <td><strong>D2F-Dream (0.1, 0.9, 0.95)</strong></td>
+                        <td><strong>73.2 <span class="speedup">(3.6x)</span></strong></td>
+                        <td><strong>3.1 <span class="speedup">(4.1x)</span></strong></td>
+                        <td>227</td>
+                        <td>54.3</td>
+                    </tr>
+                    <tr>
+                        <td><strong>D2F-Dream-vLLM (0.1, 0.9, 0.95)</strong></td>
+                        <td><strong>127.2 <span class="speedup">(6.3x)</span></strong></td>
+                        <td><strong>1.87 <span class="speedup">(6.74x)</span></strong></td>
+                        <td>238</td>
+                        <td>34.1</td>
+                    </tr>
+                    <tr>
+                        <td><strong>D2F-Dream-vLLM (0.05, 0.95, 0.9)</strong></td>
+                        <td><strong>131.7 <span class="speedup">(6.5x)</span></strong></td>
+                        <td><strong>1.78 <span class="speedup">(7.08x)</span></strong></td>
+                        <td>238</td>
+                        <td>40.2</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="note-block">
+                <h5>Implementation Notes</h5>
+                <p>The current vLLM-based prototype <strong>does not yet</strong> include:</p>
+                <ul>
+                    <li>Specialized fused / hand-optimized operators for existing decoding paradigms</li>
+                    <li>CUDA Graph capture</li>
+                    <li>Multi-GPU distributed inference</li>
+                </ul>
+                <p>We leverage <strong>Flex Attention</strong> for convenience to obtain efficient inference. Despite saturating GPU memory, overall SM occupancy remains below optimal, indicating ample headroom for future engine-level optimization (e.g., kernel fusion, graph capture, improved scheduling, compute / communication overlap). Even in this preliminary state, the implementation already delivers substantial performance gains.</p>
+            </div>
 
             <h4>Superior Efficiency Frontier</h4>
             <p>Beyond raw numbers, D2F operates on a significantly better throughput-performance curve. The graph below shows that for any given performance level, D2F is drastically faster. For instance, on GSM8K, our model achieves <strong>3.1x higher throughput</strong> than LLaMA3 while also attaining a better score.</p>
@@ -442,13 +518,12 @@
             <h3>Citation</h3>
             <p>If you find our work useful, please consider citing our paper:</p>
             <pre><code>@misc{wang2025d2f,
-  title        = {Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing},
-  author       = {Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Hu, Yanzhe and Deng, Zhijie},
-  year         = {2025},
-  howpublished = {\url{https://github.com/zhijie-group/Discrete-Diffusion-Forcing/blob/main/Discrete%20Diffusion%20Forcing.pdf}},
-  note         = {Accessed: 2025-08-13}
-}
-</code></pre>
+                            title        = {Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing},
+                            author       = {Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Hu, Yanzhe and Deng, Zhijie},
+                            year         = {2025},
+                            howpublished = {\url{https://github.com/zhijie-group/Discrete-Diffusion-Forcing/blob/main/Discrete%20Diffusion%20Forcing.pdf}},
+                            note         = {Accessed: 2025-08-13}
+                        }</code></pre>
         </article>
     </div>
 

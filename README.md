@@ -505,7 +505,7 @@ We tested the performance of our implemented vLLM (initial version). While there
 <table style="width:100%; border-collapse: collapse; text-align: center;">
   <thead style="background-color:#f2f2f2;">
     <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Thresholds (Add, Act, Conf)</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Model & Thresholds (Add, Act, Conf)</th>
       <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
       <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
       <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
@@ -514,17 +514,31 @@ We tested the performance of our implemented vLLM (initial version). While there
   </thead>
   <tbody>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>0.1, 0.9, 0.95</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">Dream-Base (0.1, 0.9, 0.95)</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">20.2 <font color="green">(1.0x)</font></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">12.6 <font color="green">(1.0x)</font></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">54.3</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd;">D2F-Dream (0.1, 0.9, 0.95)</td>
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>73.2 <font color="green">(3.6x)</font></strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>3.1 <font color="green">(4.1x)</font></strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">227</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">54.3</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd;">D2F-Dream-vLLM (0.1, 0.9, 0.95)</td>
       <td style="padding: 8px; border: 1px solid #ddd;"><strong>127.2 <font color="green">(6.3x)</font></strong></td>
       <td style="padding: 8px; border: 1px solid #ddd;"><strong>1.87 <font color="green">(6.74x)</font></strong></td>
       <td style="padding: 8px; border: 1px solid #ddd;">238</td>
       <td style="padding: 8px; border: 1px solid #ddd;">34.1</td>
     </tr>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>0.05, 0.95, 0.9</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">D2F-Dream-vLLM (0.05, 0.95, 0.9)</td>
       <td style="padding: 8px; border: 1px solid #ddd;"><strong>131.7 <font color="green">(6.5x)</font></strong></td>
       <td style="padding: 8px; border: 1px solid #ddd;"><strong>1.78 <font color="green">(7.08x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">234</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">238</td>
       <td style="padding: 8px; border: 1px solid #ddd;">40.2</td>
     </tr>
   </tbody>
