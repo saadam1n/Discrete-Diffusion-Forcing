@@ -31,7 +31,8 @@
             --color-secondary: #333;
             --color-secondary-hover: #000;
             --color-border: #e5e7eb; /* Light border color */
-            --color-subtle-bg: #f3f4f6; /* Background for code blocks */
+            --color-subtle-bg: #f3f4f6; /* Background for code blocks and table headers */
+            --color-green-text: #16a34a; /* A nice, accessible green */
         }
 
         /* Basic Reset and Body Styling */
@@ -60,34 +61,29 @@
             padding: 40px 20px;
         }
 
-        /* Header and Title */
+        /* --- HEADER LAYOUT OPTIMIZATION --- */
         header {
             text-align: center;
             margin-bottom: 60px;
             padding-bottom: 30px;
             border-bottom: 1px solid var(--color-border);
         }
+        
+        .header-logo {
+            width: 250px; /* A slightly smaller, refined logo size */
+            height: auto;
+            margin-bottom: 25px;
+        }
 
         h1 {
             font-family: var(--font-sans);
-            font-size: 2.8em;
+            font-size: 2.6em; /* Adjusted for better balance */
             font-weight: 800;
-            margin-bottom: 0.5em;
+            margin: 0 0 0.5em 0;
             color: var(--color-heading);
             line-height: 1.2;
             letter-spacing: -0.5px;
-            display: flex; /* Use flexbox for horizontal alignment */
-            align-items: center; /* Vertically center items */
-            justify-content: center; /* Horizontally center content */
-            gap: 15px; /* Space between logo and text */
         }
-
-        h1 .logo {
-            height: 1em; /* Adjust based on font size of h1 for relative sizing */
-            width: auto;
-            vertical-align: middle; /* Ensures it aligns well with text baseline */
-        }
-
 
         /* Author and Affiliation Styling */
         .authors {
@@ -131,13 +127,12 @@
         .links a.black-button:hover {
             background-color: var(--color-secondary-hover);
         }
-        .links a[href*="arxiv"] {
+        .links a[href*="github"] {
              background-color: var(--color-primary);
         }
-        .links a[href*="arxiv"]:hover {
+        .links a[href*="github"]:hover {
              background-color: var(--color-primary-hover);
         }
-
 
         /* Main Article Content */
         h3, h4 {
@@ -159,6 +154,43 @@
             font-size: 1.5em;
             margin-top: 2.5em;
             margin-bottom: 1em;
+        }
+        
+        /* --- NATIVE HTML TABLE STYLING --- */
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2em 0;
+            font-family: var(--font-sans);
+            font-size: 0.95em;
+            box-shadow: 0 4px 15px -5px rgba(0, 0, 0, 0.06);
+            border-radius: 8px;
+            overflow: hidden; /* Important for border-radius to work on tables */
+        }
+        .results-table th, .results-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--color-border);
+            text-align: center;
+        }
+        .results-table thead th {
+            background-color: var(--color-subtle-bg);
+            font-weight: 600;
+            color: var(--color-heading);
+            border-bottom: 2px solid var(--color-border);
+        }
+        .results-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .results-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        .speedup {
+            color: var(--color-green-text);
+            font-weight: 600;
+        }
+        .results-table strong { /* For best scores */
+             color: var(--color-heading);
+             font-weight: 700;
         }
 
         p, ol, ul {
@@ -241,7 +273,8 @@
 
     <div class="container">
         <header>
-            <h1><img src="assets/img/d2f/logo_ud.jpg" alt="D2F Logo" class="logo" style="width: 300px; height: auto;">D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing</h1>
+            <img src="assets/img/d2f/logo_ud.jpg" alt="D2F Logo" class="header-logo">
+            <h1>D2F: Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing</h1>
             
             <div class="authors">
                 <strong>Xu Wang*, Chenkai Xu*, Yijie Jin, Jiachun Jin, Hao Zhang, Zhijie Deng<sup>†</sup></strong>
@@ -250,11 +283,11 @@
             </div>
 
             <div class="links">
-                <a href="https://github.com/zhijie-group/Discrete-Diffusion-Forcing/blob/main/Discrete%20Diffusion%20Forcing.pdf" target="_blank" class="black-button">Paper</a>
+                <a href="https://github.com/zhijie-group/Discrete-Diffusion-Forcing/blob/main/Discrete%20Diffusion%20Forcing.pdf" target="_blank" class="black-button">📄 Paper</a>
+                <a href="https://github.com/zhijie-group/Discrete-Diffusion-Forcing" target="_blank" class="black-button">💻 Code</a>
                 <a href="https://huggingface.co/spaces/zhijie3/D2F-LLaDA-Instruct-8B" target="_blank" class="black-button">🚀 Online Demo</a>
-                <a href="https://github.com/zhijie-group/Discrete-Diffusion-Forcing" target="_blank" class="black-button">Code</a>
-                <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_Dream_Base_7B_Lora" target="_blank" class="black-button">D2F-Dream</a>
-                <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora" target="_blank" class="black-button">D2F-LLaDA</a>
+                <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_Dream_Base_7B_Lora" target="_blank" class="black-button">🤗 D2F-Dream</a>
+                <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora" target="_blank" class="black-button">🤗 D2F-LLaDA</a>
             </div>
         </header>
 
@@ -337,22 +370,60 @@
             <h3>Putting D2F to the Test: Performance Highlights</h3>
             <p>D2F sets a new standard for dLLM efficiency across multiple benchmarks. We applied our D2F method to two popular open-source dLLMs, LLaDA and Dream, and the results speak for themselves.</p>
 
-            <h4>Detailed Benchmark Results</h4>
-            <p>The tables below show a direct comparison of our D2F-enhanced models against their original baselines and previous state-of-the-art (SOTA) acceleration methods.</p>
+            <h4>Detailed Benchmark Results: LLaDA-Instruct-8B</h4>
+            <p>Our D2F method dramatically boosts speed for LLaDA, achieving up to a <strong>52.9x</strong> increase in throughput on MBPP and a <strong>29.1x</strong> increase on HumanEval compared to the baseline, while significantly outperforming previous SOTA acceleration methods.</p>
             
-            <figure>
-                <img src="assets/img/d2f/table1_llada_results.png" alt="Table comparing D2F-LLaDA with baseline LLaDA and other acceleration methods.">
-                <figcaption>
-                    <b>Table 1.</b> Performance comparison on LLaDA-Instruct-8B. Our D2F method dramatically boosts speed, achieving up to a <b>52.9x</b> increase in throughput (TPS) on MBPP and a <b>29.1x</b> increase on HumanEval compared to the baseline, while significantly outperforming previous SOTA acceleration methods.
-                </figcaption>
-            </figure>
+            <h5>GSM8K-4-shot</h5>
+            <table class="results-table">
+                <thead><tr><th>Method</th><th>TPS ↑</th><th>Latency (s) ↓</th><th>Gen. Length</th><th>Score ↑</th></tr></thead>
+                <tbody>
+                    <tr><td>LLaDA-Instruct</td><td>7.2 <span class="speedup">(1.0x)</span></td><td>32.3 <span class="speedup">(1.0x)</span></td><td>231</td><td>77.4</td></tr>
+                    <tr><td>dLLM-Cache</td><td>20.1 <span class="speedup">(2.8x)</span></td><td>11.5 <span class="speedup">(2.8x)</span></td><td>231</td><td>77.5</td></tr>
+                    <tr><td>Fast-dLLM (Prefix-Cache)</td><td>33.3 <span class="speedup">(4.6x)</span></td><td>7.0 <span class="speedup">(4.6x)</span></td><td>232</td><td>77.8</td></tr>
+                    <tr><td>Fast-dLLM (Dual-Cache)</td><td>35.2 <span class="speedup">(4.9x)</span></td><td>6.6 <span class="speedup">(4.9x)</span></td><td>232</td><td><strong>78.9</strong></td></tr>
+                    <tr><td><strong>D2F-LLaDA</strong></td><td><strong>52.5 <span class="speedup">(7.3x)</span></strong></td><td><strong>2.8 <span class="speedup">(11.5x)</span></strong></td><td>144</td><td>77.3</td></tr>
+                </tbody>
+            </table>
 
-            <figure>
-                <img src="assets/img/d2f/table2_dream_results.png" alt="Table comparing D2F-Dream with baseline Dream and other acceleration methods.">
-                <figcaption>
-                    <b>Table 2.</b> Performance comparison on Dream-Base-7B. D2F provides substantial gains, achieving a <b>9.6x</b> speedup on GSM8K-CoT and a <b>10.1x</b> speedup on MBPP. Notably, the performance score often improves alongside the speed.
-                </figcaption>
-            </figure>
+            <h5>MBPP-3-shot</h5>
+            <table class="results-table">
+                <thead><tr><th>Method</th><th>TPS ↑</th><th>Latency (s) ↓</th><th>Gen. Length</th><th>Score ↑</th></tr></thead>
+                <tbody>
+                    <tr><td>LLaDA-Instruct</td><td>0.9 <span class="speedup">(1.0x)</span></td><td>71.4 <span class="speedup">(1.0x)</span></td><td>65</td><td><strong>39.0</strong></td></tr>
+                    <tr><td>dLLM-Cache</td><td>2.3 <span class="speedup">(2.6x)</span></td><td>28.3 <span class="speedup">(2.5x)</span></td><td>66</td><td>37.0</td></tr>
+                    <tr><td>Fast-dLLM (Prefix-Cache)</td><td>13.0 <span class="speedup">(14.4x)</span></td><td>4.9 <span class="speedup">(14.6x)</span></td><td>64</td><td>37.6</td></tr>
+                    <tr><td>Fast-dLLM (Dual-Cache)</td><td>15.3 <span class="speedup">(17.0x)</span></td><td>3.8 <span class="speedup">(18.8x)</span></td><td>58</td><td>36.4</td></tr>
+                    <tr><td><strong>D2F-LLaDA</strong></td><td><strong>47.6 <span class="speedup">(52.9x)</span></strong></td><td><strong>1.4 <span class="speedup">(51.0x)</span></strong></td><td>68</td><td>38.0</td></tr>
+                </tbody>
+            </table>
+
+            <h4>Detailed Benchmark Results: Dream-Base-7B</h4>
+            <p>Applying D2F to Dream-Base-7B results in substantial gains, including a <strong>9.6x</strong> speedup on GSM8K-CoT and a <strong>10.1x</strong> speedup on MBPP. Notably, the performance score often improves alongside the speed.</p>
+            
+            <h5>GSM8K-CoT-8-shot</h5>
+            <table class="results-table">
+                 <thead><tr><th>Method</th><th>TPS ↑</th><th>Latency (s) ↓</th><th>Gen. Length</th><th>Score ↑</th></tr></thead>
+                 <tbody>
+                    <tr><td>Dream-Base</td><td>9.5 <span class="speedup">(1.0x)</span></td><td>26.8 <span class="speedup">(1.0x)</span></td><td>255</td><td>75.0</td></tr>
+                    <tr><td>dLLM-Cache</td><td>26.0 <span class="speedup">(2.7x)</span></td><td>9.8 <span class="speedup">(2.7x)</span></td><td>255</td><td>72.0</td></tr>
+                    <tr><td>Fast-dLLM (Prefix-Cache)</td><td>50.3 <span class="speedup">(5.3x)</span></td><td>5.1 <span class="speedup">(5.3x)</span></td><td>255</td><td>76.6</td></tr>
+                    <tr><td>Fast-dLLM (Dual-Cache)</td><td>49.8 <span class="speedup">(5.2x)</span></td><td>5.1 <span class="speedup">(5.3x)</span></td><td>255</td><td>75.0</td></tr>
+                    <tr><td><strong>D2F-Dream</strong></td><td><strong>91.2 <span class="speedup">(9.6x)</span></strong></td><td><strong>2.8 <span class="speedup">(9.6x)</span></strong></td><td>256</td><td><strong>77.6</strong></td></tr>
+                </tbody>
+            </table>
+
+            <h5>MBPP-3-shot</h5>
+            <table class="results-table">
+                 <thead><tr><th>Method</th><th>TPS ↑</th><th>Latency (s) ↓</th><th>Gen. Length</th><th>Score ↑</th></tr></thead>
+                 <tbody>
+                    <tr><td>Dream-Base</td><td>10.4 <span class="speedup">(1.0x)</span></td><td>24.6 <span class="speedup">(1.0x)</span></td><td>256</td><td>56.2</td></tr>
+                    <tr><td>dLLM-Cache</td><td>25.5 <span class="speedup">(2.5x)</span></td><td>10.0 <span class="speedup">(2.5x)</span></td><td>256</td><td>52.6</td></tr>
+                    <tr><td>Fast-dLLM (Prefix-Cache)</td><td>71.6 <span class="speedup">(6.9x)</span></td><td>3.6 <span class="speedup">(6.8x)</span></td><td>256</td><td><strong>56.4</strong></td></tr>
+                    <tr><td>Fast-dLLM (Dual-Cache)</td><td>73.2 <span class="speedup">(7.0x)</span></td><td>3.5 <span class="speedup">(7.0x)</span></td><td>256</td><td>51.0</td></tr>
+                    <tr><td><strong>D2F-Dream</strong></td><td><strong>105 <span class="speedup">(10.1x)</span></strong></td><td><strong>2.3 <span class="speedup">(10.7x)</span></strong></td><td>240</td><td>55.2</td></tr>
+                </tbody>
+            </table>
+
 
             <h4>Superior Efficiency Frontier</h4>
             <p>Beyond raw numbers, D2F operates on a significantly better throughput-performance curve. The graph below shows that for any given performance level, D2F is drastically faster. For instance, on GSM8K, our model achieves <strong>3.1x higher throughput</strong> than LLaMA3 while also attaining a better score.</p>
