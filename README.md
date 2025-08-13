@@ -37,8 +37,9 @@ https://github.com/user-attachments/assets/d9de6450-68d6-4caf-85c2-c7f384395c42
 
 **Discrete Diffusion Forcing (D2F)** is a novel training and inference paradigm that, for the first time, enables open-source Diffusion Language Models (dLLMs) to surpass their autoregressive (AR) counterparts in inference speed. By introducing a highly efficient AR-diffusion hybrid model, D2F achieves:
 - Up to a **2.5x speedup** over leading AR models like LLaMA3-8B.
-- A staggering **50x acceleration** over vanilla dLLM baselines.
+- A staggering **50x+ acceleration** over vanilla dLLM baselines.
 - Comparable generation quality on standard reasoning and coding benchmarks.
+- **Integration with vLLM** to unlock the next tier of extreme inference acceleration.
 
 This repository provides the code to reproduce our evaluation results and run generation demos.
 
@@ -47,6 +48,7 @@ This repository provides the code to reproduce our evaluation results and run ge
 ## Contents
 - [🤔 How It Works](#-how-it-works)
 - [📊 Performance Highlights](#-performance-highlights)
+- [⚡️ Extreme Acceleration with vLLM Integration](#️-extreme-acceleration-with-vllm-integration)
 - [🚀 Usage Guide](#-usage-guide)
 - [🙏 Acknowledgements](#-acknowledgements)
 - [©️ Citation](#️-citation)
@@ -82,476 +84,185 @@ https://github.com/user-attachments/assets/41a0176b-e4ae-4f8b-95a6-daed7af2a027
 
 ## 📊 Performance Highlights
 
-We applied D2F to two popular open-source dLLMs: **LLaDA-Instruct-8B** and **Dream-Base-7B**. The results demonstrate massive speedups over baselines and previous SOTA acceleration methods, without compromising on quality.
+D2F delivers transformative speedups while maintaining or improving scores. Below is a comprehensive summary of performance on **LLaDA-Instruct-8B** and **Dream-Base-7B**, comparing our method against the original baseline and the previous SOTA acceleration method, Fast-dLLM.
 
-#### Performance on LLaDA-Instruct-8B
 <center>
 
-<strong>GSM8K-4-shot</strong>
+**Performance on LLaDA-Instruct-8B**
 <table style="width:100%; border-collapse: collapse; text-align: center;">
   <thead style="background-color:#f2f2f2;">
     <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Method</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Benchmark</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Metric</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">LLaDA-Instruct (Baseline)</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (SOTA)</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">D2F-LLaDA (Ours)</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">LLaDA-Instruct</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">7.2 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">32.3 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">231</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">77.4</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">dLLM-Cache</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">20.1 <font color="green">(2.8x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">11.5 <font color="green">(2.8x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">231</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">77.5</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Prefix-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">33.3 <font color="green">(4.6x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">7.0 <font color="green">(4.6x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">232</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">77.8</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Dual-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">35.2 <font color="green">(4.9x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">6.6 <font color="green">(4.9x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">232</td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><b>78.9</b></td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>D2F-LLaDA</strong></td>
+      <td rowspan="2" style="padding: 8px; border: 1px solid #ddd; vertical-align: middle;"><strong>GSM8K-4-shot</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">TPS ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">7.2</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">35.2</td>
       <td style="padding: 8px; border: 1px solid #ddd;"><strong>52.5 <font color="green">(7.3x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>2.8 <font color="green">(11.5x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">144</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd;">Score ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">77.4</td>
+      <td style="padding: 8px; border: 1px solid #ddd;"><b>78.9</b></td>
       <td style="padding: 8px; border: 1px solid #ddd;">77.3</td>
     </tr>
-  </tbody>
-</table>
-
-<strong>MBPP-3-shot</strong>
-<table style="width:100%; border-collapse: collapse; text-align: center;">
-  <thead style="background-color:#f2f2f2;">
     <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Method</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">LLaDA-Instruct</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">0.9 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">71.4 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">65</td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><b>39.0</b></td>
+      <td rowspan="2" style="padding: 8px; border: 1px solid #ddd; vertical-align: middle; background-color: #fafafa;"><strong>MBPP-3-shot</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">TPS ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">0.9</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">15.3</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;"><strong>47.6 <font color="green">(52.9x)</font></strong></td>
     </tr>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">dLLM-Cache</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">2.3 <font color="green">(2.6x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">28.3 <font color="green">(2.5x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">66</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">37.0</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">Score ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;"><b>39.0</b></td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">36.4</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">38.0</td>
     </tr>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Prefix-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">13.0 <font color="green">(14.4x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">4.9 <font color="green">(14.6x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">64</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">37.6</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Dual-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">15.3 <font color="green">(17.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">3.8 <font color="green">(18.8x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">58</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">36.4</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>D2F-LLaDA</strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>47.6 <font color="green">(52.9x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>1.4 <font color="green">(51.0x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">68</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">38.0</td>
-    </tr>
-  </tbody>
-</table>
-
-<strong>HumanEval-0-shot</strong>
-<table style="width:100%; border-collapse: collapse; text-align: center;">
-  <thead style="background-color:#f2f2f2;">
-    <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Method</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">LLaDA-Instruct</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">2.8 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">38.8 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">107</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">36.0</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">dLLM-Cache</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">4.5 <font color="green">(1.6x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">23.3 <font color="green">(1.7x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">104</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">39.0</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Prefix-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">13.7 <font color="green">(4.9x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">7.4 <font color="green">(5.2x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">102</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">38.4</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Dual-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">19.2 <font color="green">(6.9x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">5.2 <font color="green">(7.5x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">100</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">35.4</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>D2F-LLaDA</strong></td>
+      <td rowspan="2" style="padding: 8px; border: 1px solid #ddd; vertical-align: middle;"><strong>HumanEval-0-shot</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">TPS ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">2.8</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">19.2</td>
       <td style="padding: 8px; border: 1px solid #ddd;"><strong>81.6 <font color="green">(29.1x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>1.6 <font color="green">(24.3x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">133</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd;">Score ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">36.0</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">35.4</td>
       <td style="padding: 8px; border: 1px solid #ddd;"><b>40.2</b></td>
     </tr>
+    <tr>
+      <td rowspan="2" style="padding: 8px; border: 1px solid #ddd; vertical-align: middle; background-color: #fafafa;"><strong>Math-4-shot</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">TPS ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">21.1</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">42.5</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;"><strong>90.2 <font color="green">(4.3x)</font></strong></td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">Score ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">23.7</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">22.4</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;"><b>29.1</b></td>
+    </tr>
   </tbody>
 </table>
 
-<strong>Math-4-shot</strong>
+**Performance on Dream-Base-7B**
 <table style="width:100%; border-collapse: collapse; text-align: center;">
   <thead style="background-color:#f2f2f2;">
     <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Method</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Benchmark</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Metric</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Dream-Base (Baseline)</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (SOTA)</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">D2F-Dream (Ours)</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">LLaDA-Instruct</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">21.1 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">11.5 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">243</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">23.7</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">dLLM-Cache</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">26.9 <font color="green">(1.3x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">9.1 <font color="green">(1.3x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">246</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">23.2</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Prefix-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">47.7 <font color="green">(2.3x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">5.2 <font color="green">(2.2x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">246</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">22.4</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Dual-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">42.5 <font color="green">(2.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">5.8 <font color="green">(2.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">246</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">22.4</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>D2F-LLaDA</strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>90.2 <font color="green">(4.3x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>4.3 <font color="green">(2.7x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">384</td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><b>29.1</b></td>
-    </tr>
-  </tbody>
-</table>
-<br>
-<small>D2F provides transformative speedups for LLaDA-Instruct-8B, achieving a <b>52.9x</b> increase in throughput on MBPP and a <b>29.1x</b> increase on HumanEval while also improving the score.</small>
-
-</center>
-
-#### Performance on Dream-Base-7B
-<center>
-
-<strong>GSM8K-CoT-8-shot</strong>
-<table style="width:100%; border-collapse: collapse; text-align: center;">
-  <thead style="background-color:#f2f2f2;">
-    <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Method</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Dream-Base</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">9.5 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">26.8 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">75.0</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">dLLM-Cache</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">26.0 <font color="green">(2.7x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">9.8 <font color="green">(2.7x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">72.0</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Prefix-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">50.3 <font color="green">(5.3x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">5.1 <font color="green">(5.3x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">76.6</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Dual-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">49.8 <font color="green">(5.2x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">5.1 <font color="green">(5.3x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">75.0</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>D2F-Dream</strong></td>
+      <td rowspan="2" style="padding: 8px; border: 1px solid #ddd; vertical-align: middle;"><strong>GSM8K-CoT-8-shot</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">TPS ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">9.5</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">49.8</td>
       <td style="padding: 8px; border: 1px solid #ddd;"><strong>91.2 <font color="green">(9.6x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>2.8 <font color="green">(9.6x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd;">Score ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">75.0</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">75.0</td>
       <td style="padding: 8px; border: 1px solid #ddd;"><b>77.6</b></td>
     </tr>
-  </tbody>
-</table>
-
-<strong>MBPP-3-shot</strong>
-<table style="width:100%; border-collapse: collapse; text-align: center;">
-  <thead style="background-color:#f2f2f2;">
     <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Method</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Dream-Base</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">10.4 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">24.6 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">56.2</td>
+      <td rowspan="2" style="padding: 8px; border: 1px solid #ddd; vertical-align: middle; background-color: #fafafa;"><strong>MBPP-3-shot</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">TPS ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">10.4</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">73.2</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;"><strong>105 <font color="green">(10.1x)</font></strong></td>
     </tr>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">dLLM-Cache</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">25.5 <font color="green">(2.5x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">10.0 <font color="green">(2.5x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">52.6</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">Score ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">56.2</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">51.0</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;"><b>56.4</b></td>
     </tr>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Prefix-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">71.6 <font color="green">(6.9x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">3.6 <font color="green">(6.8x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><b>56.4</b></td>
+      <td rowspan="2" style="padding: 8px; border: 1px solid #ddd; vertical-align: middle;"><strong>HumanEval-0-shot</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd;">TPS ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">20.2</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">60.0</td>
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>73.2 <font color="green">(3.6x)</font></strong></td>
     </tr>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Dual-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">73.2 <font color="green">(7.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">3.5 <font color="green">(7.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">51.0</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>D2F-Dream</strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>105 <font color="green">(10.1x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>2.3 <font color="green">(10.7x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">240</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">55.2</td>
-    </tr>
-  </tbody>
-</table>
-
-<strong>HumanEval-0-shot</strong>
-<table style="width:100%; border-collapse: collapse; text-align: center;">
-  <thead style="background-color:#f2f2f2;">
-    <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Method</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Dream-Base</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">20.2 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">12.6 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">Score ↑</td>
       <td style="padding: 8px; border: 1px solid #ddd;">54.3</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">dLLM-Cache</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">23.2 <font color="green">(1.1x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">11.0 <font color="green">(1.1x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">53.0</td>
       <td style="padding: 8px; border: 1px solid #ddd;"><b>55.5</b></td>
     </tr>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Prefix-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">62.4 <font color="green">(3.1x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">4.1 <font color="green">(3.1x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">54.3</td>
+      <td rowspan="2" style="padding: 8px; border: 1px solid #ddd; vertical-align: middle; background-color: #fafafa;"><strong>Math-4-shot</strong></td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">TPS ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">9.9</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">67.0</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;"><strong>98.8 <font color="green">(10.0x)</font></strong></td>
     </tr>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Dual-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">60.0 <font color="green">(3.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">4.3 <font color="green">(2.9x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">53.0</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>D2F-Dream</strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>73.2 <font color="green">(3.6x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>3.1 <font color="green">(4.1x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">227</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">54.3</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">Score ↑</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">35.8</td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;"><b>37.6</b></td>
+      <td style="padding: 8px; border: 1px solid #ddd; background-color: #fafafa;">35.4</td>
     </tr>
   </tbody>
 </table>
-
-<strong>Math-4-shot</strong>
-<table style="width:100%; border-collapse: collapse; text-align: center;">
-  <thead style="background-color:#f2f2f2;">
-    <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Method</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Dream-Base</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">9.9 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">25.8 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">35.8</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">dLLM-Cache</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">12.7 <font color="green">(1.3x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">20.2 <font color="green">(1.3x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">34.5</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Prefix-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">65.6 <font color="green">(6.6x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">3.9 <font color="green">(6.6x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><b>37.6</b></td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Fast-dLLM (Dual-Cache)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">67.0 <font color="green">(6.8x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">3.8 <font color="green">(6.8x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">37.1</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>D2F-Dream</strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>98.8 <font color="green">(10.0x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>2.6 <font color="green">(9.9x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">256</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">35.4</td>
-    </tr>
-  </tbody>
-</table>
-<br>
-<small>Applying D2F to Dream-Base-7B results in substantial gains, including a <b>9.6x</b> speedup on GSM8K-CoT and a <b>10.1x</b> speedup on MBPP. Notably, performance scores often improve alongside the acceleration.</small>
 </center>
 
-### Demo Results of vLLM
+## ⚡️ Extreme Acceleration with vLLM Integration
 
-We tested the performance of our implemented vLLM (initial version). While there was significant performance improvement, we observed an unexpected decrease in inference scores.
+To push the boundaries of inference speed, we've integrated D2F with a **preliminary vLLM-based engine**. This unlocks a multiplicative speedup on top of our already-accelerated model, showcasing the immense potential for production environments.
 
-<strong>HumanEval-0-shot</strong>
+<center>
+
+<strong>HumanEval-0-shot with vLLM</strong>
 <table style="width:100%; border-collapse: collapse; text-align: center;">
   <thead style="background-color:#f2f2f2;">
     <tr>
-      <th style="padding: 8px; border: 1px solid #ddd;">Model & Thresholds (Add, Act, Conf)</th>
+      <th style="padding: 8px; border: 1px solid #ddd;">Model</th>
       <th style="padding: 8px; border: 1px solid #ddd;">TPS ↑</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Latency (s) ↓</th>
-      <th style="padding: 8px; border: 1px solid #ddd;">Gen. Length</th>
       <th style="padding: 8px; border: 1px solid #ddd;">Score ↑</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">Dream-Base (0.1, 0.95, 0.90)</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">Dream-Base (Baseline)</td>
       <td style="padding: 8px; border: 1px solid #ddd;">20.2 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">12.6 <font color="green">(1.0x)</font></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">255</td>
       <td style="padding: 8px; border: 1px solid #ddd;">54.3</td>
     </tr>
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">D2F-Dream (0.1, 0.95, 0.90)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>73.2 <font color="green">(3.6x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>3.1 <font color="green">(4.1x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">227</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">D2F-Dream (Ours)</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">73.2 <font color="green">(3.6x)</font></td>
       <td style="padding: 8px; border: 1px solid #ddd;">54.3</td>
     </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">D2F-Dream-vLLM (0.1, 0.95, 0.90)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>127.2 <font color="green">(6.3x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>1.87 <font color="green">(6.74x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">238</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">34.1</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">D2F-Dream-vLLM (0.05, 0.90, 0.95)</td>
+    <tr style="background-color:#E8F5E9;">
+      <td style="padding: 8px; border: 1px solid #ddd;"><strong>D2F-Dream + vLLM (Ours)</strong></td>
       <td style="padding: 8px; border: 1px solid #ddd;"><strong>131.7 <font color="green">(6.5x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;"><strong>1.78 <font color="green">(7.08x)</font></strong></td>
-      <td style="padding: 8px; border: 1px solid #ddd;">238</td>
       <td style="padding: 8px; border: 1px solid #ddd;">40.2</td>
     </tr>
   </tbody>
 </table>
+<br>
+<small>Our D2F-Dream model with a preliminary vLLM engine achieves a <b>6.5x speedup</b> over the original Dream-Base, though we observe a score drop that we are actively working to resolve through optimized kernels.</small>
 
-> ​​Implementation Notes​​:
-> 
-> The current vLLM implementation does not include:
-> - Specialized optimized operators for existing decoding paradigms
-> - CUDA Graph Capturing
-> - Multi-GPU distributed inference
-> 
-> For convenience, we used Flex Attention to enable efficient inference. Even with full GPU memory utilization, the GPU occupancy rate remains suboptimal, indicating substantial room for engine optimization. Nevertheless, significant performance gains have already been achieved.
+</center>
+
+> **Implementation Notes:**
+> The current vLLM integration is an initial proof-of-concept. It already provides a significant performance boost by leveraging Flex Attention, but there is substantial room for further optimization. Our future work will focus on implementing specialized CUDA kernels and other advanced vLLM features to maximize speed while restoring the score.
 
 ## 🚀 Usage Guide
 
@@ -619,28 +330,23 @@ The results will be saved in the `output_path` specified within the shell script
 
 We provide simple scripts to demonstrate the generation process and compare D2F with a standard AR baseline.
 ```shell
-# To run a demo with the baseline AR generation method:
-python generate_llada_demo_ar.py
-
 # To run a demo with the D2F pipelined block generation method:
 python generate_llada_demo_block.py
+
+# To compare, run a demo with the baseline AR generation method:
+python generate_llada_demo_ar.py
 ```
 You can inspect these files to see how to use the D2F model for inference in your own projects.
 
 ## 📚 Future Works
 
-- [x] Implement dLLM-suported vLLM.
-
-- [ ] Implement fused dLLM specific decoding kernel with kv cache loading for vLLM.
-
-- [ ] Implement distributed inference with multi-gpus in vLLM.
-
-- [ ] Implement CUDA graph capturing for dynamic sequence decoding for dLLMs in vLLM.
-
-...
+- [x] Implement dLLM-suported vLLM (preliminary).
+- [ ] Implement fused dLLM-specific decoding kernels for vLLM to maximize performance and restore scores.
+- [ ] Implement distributed inference with multi-GPUs in vLLM.
+- [ ] Implement CUDA graph capturing for dynamic sequences in vLLM.
 
 ## 🙏 Acknowledgements
-Our work builds upon the foundations laid by the original **LLaDA** and **Dream** models. We thank their authors for making their work public. We are also grateful for the powerful open-source tools from Hugging Face that made this research possible.
+Our work builds upon the foundations laid by the original **LLaDA** and **Dream** models. We thank their authors for making their work public. We are also grateful for the powerful open-source tools from Hugging Face and the vLLM team that made this research possible.
 
 ## ©️ Citation
 If you find our work useful for your research, please consider citing our paper:
