@@ -181,10 +181,12 @@ Our work builds upon the foundations laid by the original **LLaDA** and **Dream*
 ## ©️ Citation
 If you find our work useful for your research, please consider citing our paper:
 ```bibtex
-@article{wang2025d2f,
-  title={Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing},
-  author={Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Hu, Yanzhe and Deng, Zhijie},
-  journal={arXiv preprint arXiv:2409.11718},
-  year={2024}
+@misc{wang2025d2f,
+  title        = {Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing},
+  author       = {Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Hu, Yanzhe and Deng, Zhijie},
+  year         = {2024},
+  howpublished = {\url{https://github.com/zhijie-group/Discrete-Diffusion-Forcing/blob/main/Discrete%20Diffusion%20Forcing.pdf}},
+  note         = {Accessed: 2025-08-13}
 }
+
 ```
