@@ -5,7 +5,7 @@
 ## Discrete Diffusion Forcing (D2F): dLLMs Can Do Faster-Than-AR Inference
 
 <p align="center">
-  <a href="Discrete Diffusion Forcing.pdf"><b>📄 Paper</b></a> •
+  <a href="https://arxiv.org/abs/2508.09192"><b>📄 Paper</b></a> •
   <a href="https://zhijie-group.github.io/Discrete-Diffusion-Forcing/"><b>📝 Blog Post</b></a> •
   <a href="https://huggingface.co/spaces/zhijie3/D2F-LLaDA-Instruct-8B"><b>🚀 Online Demo</b></a> •
   <a href="https://huggingface.co/SJTU-Deng-Lab/D2F_Dream_Base_7B_Lora"><b>🤗 D2F-Dream LoRA</b></a> •
@@ -351,12 +351,18 @@ Our work builds upon the foundations laid by the original **LLaDA** and **Dream*
 ## ©️ Citation
 If you find our work useful for your research, please consider citing our paper:
 ```bibtex
-@misc{wang2025d2f,
+@misc{wang2025diffusionLLMsD2F,
   title        = {Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing},
-  author       = {Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Hu, Yanzhe and Deng, Zhijie},
+  author       = {Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Zhang, Hao and Deng, Zhijie},
   year         = {2025},
-  howpublished = {\url{https://github.com/zhijie-group/Discrete-Diffusion-Forcing/blob/main/Discrete%20Diffusion%20Forcing.pdf}},
-  note         = {Accessed: 2025-08-13}
+  month        = {aug},
+  eprint       = {2508.09192},
+  archivePrefix= {arXiv},
+  primaryClass = {cs.LG},
+  doi          = {10.48550/arXiv.2508.09192},
+  url          = {https://arxiv.org/abs/2508.09192},
+  note         = {arXiv:2508.09192}
 }
+
 
 ```
