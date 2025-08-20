@@ -44,7 +44,8 @@ https://github.com/user-attachments/assets/d9de6450-68d6-4caf-85c2-c7f384395c42
 This repository provides the code to reproduce our evaluation results and run generation demos.
 
 ## 🔥 News!
-* Aug 8, 2025: We've released the inference code and training pipeline of D2F!
+* Aug 20, 2025: We've released the training pipeline of D2F!
+* Aug 8, 2025: We've released the inference code of D2F!
 ## Contents
 - [🤔 How It Works](#-how-it-works)
 - [📊 Performance Highlights](#-performance-highlights)
@@ -326,7 +327,20 @@ The results will be saved in the `output_path` specified within the shell script
 > ```
 > Replace the path with the actual path to your generated samples file, which can be found in the specified `output_path`.
 
-### 3. Generation Demo
+### 3. Training
+All training scripts and configurations are located in the `D2F-train` directory.
+```shell
+# Navigate to the training directory
+cd D2F-train
+```
+Before starting the training, you need to configure the paths for your dataset, models, and output directories. Modify the relevant paths in the configuration files located inside the `config` folder.
+
+Once the configuration is set, you can start the training process by running:
+```shell
+bash train.sh
+```
+
+### 4. Generation Demo
 
 We provide simple scripts to demonstrate the generation process and compare D2F with a standard AR baseline.
 ```shell
