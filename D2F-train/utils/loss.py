@@ -155,33 +155,34 @@ def compute_llada_loss(
     return losses 
 
 
-def build_custom_float_attention_mask(input_ids, question_length, block_size, device):
-    B, L = input_ids.shape
-    mask = torch.zeros((B, L, L), device=device, dtype=torch.float16)
-    
+def build_custom_float_attention_mask(input_ids, prompt_length, block_size, device=None):
+    B,seq_len= input_ids.shape
+    # 初始化为全 -inf
+    attn_mask = torch.full((B,1,seq_len, seq_len), float('-inf'), dtype=torch.float32, device=device)
+    # 1. Prompt部分：每个token可以注意整个prompt
     for i in range(B):
-        prompt_len = question_length[i].item()
-        
-        # Prompt part: full attention
-        mask[i, :prompt_len, :prompt_len] = 1.0
-        
-        # Answer part: block attention
-        answer_start = prompt_len
-        answer_len = L - prompt_len
-        
-        if answer_len > 0:
-            # All positions can attend to prompt
-            mask[i, answer_start:, :prompt_len] = 1.0
-            
-            # Block attention within answer part
-            for block_start in range(answer_start, L, block_size):
-                block_end = min(block_start + block_size, L)
-                mask[i, block_start:block_end, block_start:block_end] = 1.0
-    
-    # Convert to 4D for transformer
-    mask = mask.unsqueeze(1)  # (B, 1, L, L)
-    
-    return mask
+        attn_mask[i,:,:,:prompt_length[i]] = 0.0  # 允许所有 token 看 prompt
+
+        # 2. 块划分：从 prompt_length 开始划分 block
+        num_blocks = (seq_len - prompt_length[i] + block_size - 1) // block_size
+
+        for b in range(num_blocks):
+            block_start = prompt_length[i] + b * block_size
+            # print(block_start,block_size,seq_len)
+            block_end = min(block_start + block_size, seq_len)
+
+            # 块内全注意
+            attn_mask[i,:,block_start:block_end, block_start:block_end] = 0.0
+
+            # 块之间因果注意（只能看前面块）
+            for prev_b in range(b):
+                prev_start = prompt_length[i] + prev_b * block_size
+                prev_end = min(prev_start + block_size, seq_len)
+
+                # 当前块可以看前面块
+                attn_mask[i,:,block_start:block_end, prev_start:prev_end] = 0.0
+
+    return attn_mask  # [seq_len, seq_len], float, 0.0 for allowed, -inf for disallowed
 if __name__ == "__main__":
     seq_len = 10
     input_ids = torch.randint(0, 100, (2, seq_len))  # 示例输入
