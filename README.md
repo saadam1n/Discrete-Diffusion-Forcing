@@ -365,17 +365,11 @@ Our work builds upon the foundations laid by the original **LLaDA** and **Dream*
 ## ©️ Citation
 If you find our work useful for your research, please consider citing our paper:
 ```bibtex
-@misc{wang2025diffusionLLMsD2F,
-  title        = {Diffusion LLMs Can Do Faster-Than-AR Inference via Discrete Diffusion Forcing},
-  author       = {Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Zhang, Hao and Deng, Zhijie},
-  year         = {2025},
-  month        = {aug},
-  eprint       = {2508.09192},
-  archivePrefix= {arXiv},
-  primaryClass = {cs.LG},
-  doi          = {10.48550/arXiv.2508.09192},
-  url          = {https://arxiv.org/abs/2508.09192},
-  note         = {arXiv:2508.09192}
+@article{wang2025diffusion,
+  title={Diffusion llms can do faster-than-ar inference via discrete diffusion forcing},
+  author={Wang, Xu and Xu, Chenkai and Jin, Yijie and Jin, Jiachun and Zhang, Hao and Deng, Zhijie},
+  journal={arXiv preprint arXiv:2508.09192},
+  year={2025}
 }
 
 
