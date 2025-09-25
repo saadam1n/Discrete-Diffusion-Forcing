@@ -77,8 +77,8 @@ def forward_process_length(input_ids, mask_id, block_size, prompt_lengths,eos_id
 
             noisy_batch[i, start:end] = masked_block.squeeze(0)
             masked_indices[i, start:end] = mask.squeeze(0)
-            if torch.all(input_ids[i, start:end] == eos_id):
-                masked_indices[i,start:end]== False
+            # if torch.all(input_ids[i, start:end] == eos_id):
+            #     masked_indices[i,start:end]== False
                 # print("1")
 
             p_mask_tensor[i, start:end] = p_block
