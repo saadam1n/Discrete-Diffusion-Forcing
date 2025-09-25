@@ -18,7 +18,7 @@ denoiser:
     wiinit: true
     name: 'eagle_rope'
     num_blocks: 1
-    seq_len: &seq_len 512
+    seq_len: &seq_len 1024
     input_dim: 3584
     hidden_dim: &dim 3584
     vocab_size: 152064
