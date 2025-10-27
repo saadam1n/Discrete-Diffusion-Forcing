@@ -90,6 +90,66 @@ def sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, margin_confid
     return confidence, x0, initial_confidence
 
 
+def remask_duplicates_(x0, mask_token_id):
+    i = 0
+    n = x0.shape[0]
+
+    while i < n:
+        search_token = x0[i].item()
+
+        if search_token == mask_token_id:
+            i += 1
+            continue
+
+        # use a while loop to fix python funkiness
+        j = i + 1
+        while j < n and x0[j] == search_token:
+            j += 1
+
+        # remask all duplicated tokens
+        if j - i > 1:
+            x0[i:j] = mask_token_id
+
+        # skip to the next non-duplicated token
+        i = j
+
+
+def ntis_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_steps=-1, cur_ift_steps=-1, mask_token_id=-1, cur_x_t=None):
+    if temperature > 0: logits = logits / temperature
+
+    if top_p is not None and top_p < 1: logits = top_p_logits(logits, top_p)
+
+    if top_k is not None: logits = top_k_logits(logits, top_k)
+
+    x0 = torch.argmax(logits, dim=-1)
+
+    # remasking for tokens if we are not at the last ift step
+    if cur_ift_steps + 1 != num_ift_steps:
+        probs = torch.softmax(logits, dim=-1)
+        x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
+
+        #print(f"RMSK STR: {x0}")
+        remask_duplicates_(x0, mask_token_id)
+        #print(f"RMSK DUP: {x0}")
+
+
+        # keep tokens that are either 1) very high confidence or 2) were masked previously
+        conf_cond = x0_p > 0.9
+        prev_cond = (cur_x_t == mask_token_id)
+        remask_cond = torch.logical_or(conf_cond, prev_cond)
+
+        x0 = torch.where(remask_cond, x0, mask_token_id)
+        #print(f"RMSK LOW: {x0}")
+
+
+        # remask endoftext or eot_id (==126348) tokens
+        skip_end = torch.logical_or(x0 == mask_token_id, x0 == 126348) 
+        x0 = torch.where(skip_end, cur_x_t, x0)
+        #print(f"RMSK EOT: {x0}")
+
+
+    return x0
+
 class DreamLoRAInference:
     CSS = """
     /* Fixed height, scrollable visualization container */
@@ -397,6 +457,10 @@ class DreamLoRAInference:
         
         yield "", captured_frames, "Initializing generation process...", "Initializing visualization...", "Initializing block status..."
 
+        num_ift_steps = 12
+        cur_ift_step = num_ift_steps
+
+
         # Main generation loop
         while True:
             step += 1
@@ -406,17 +470,26 @@ class DreamLoRAInference:
             # logic for determining if we should add more blocks
             # we can just set block_add_threshold to 0.99 for this in our initial impl
             if len(block_states) - 1 < (max_new_tokens // block_size) and not eos_detected:
-                last_block_id = max(block_states.keys())
-                progress = (block_states[last_block_id]['total_masks'] - block_states[last_block_id]['mask_count']) / block_states[last_block_id]['total_masks'] if block_states[last_block_id]['total_masks'] > 0 else 1.0
-                if progress >= block_add_threshold:
+                # add new block if we have completed the number of ift steps for this iteration
+                if cur_ift_step == num_ift_steps:
+                    cur_ift_step = 0
+
+                    # add new block
+                    last_block_id = max(block_states.keys())
                     new_block_id = last_block_id + 1; new_start_pos = x_t.shape[1]
                     if new_start_pos + block_size <= self.max_length:
                         x_t = torch.cat([x_t, torch.full((1, block_size), self.mask_token_id, device=self.device, dtype=torch.long)], dim=1)
                         block_states[new_block_id] = {'start_pos': new_start_pos, 'end_pos': new_start_pos + block_size, 'mask_count': block_size, 'total_masks': block_size, 'state': 'active', 'is_complete': False}
                         current_blocks += 1
 
-            self._update_block_completion_states(block_states, decoded_token_threshold)
+
+            # ntis sampler does not need to keep track of completion
+            #self._update_block_completion_states(block_states, decoded_token_threshold)
+
             if (x_t == self.mask_token_id).sum() == 0 and current_blocks == 0: break
+            #if (x_t == self.mask_token_id).sum() == 0 and current_blocks == 0: break
+
+            print(f"Cur ift step: {cur_ift_step + 1}/{num_ift_steps}")
 
             blocks_to_cache = [bid for bid, state in block_states.items() if state['state'] == 'to_cache']
             if blocks_to_cache:
@@ -453,37 +526,34 @@ class DreamLoRAInference:
             blocks_to_deactivate = []
             for block_id, state in block_states.items():
                 if state['state'] != 'active': continue
-                block_mask_locs = (x_t[0, state['start_pos']:state['end_pos']] == self.mask_token_id).nonzero().squeeze(-1)
 
-                # active block -> inactive if all tokens sampled
-                if block_mask_locs.numel() == 0:
-                    blocks_to_deactivate.append(block_id); continue
-                
+                true_start = state['start_pos'] - process_start_pos
+                true_end = state['end_pos'] - process_start_pos
 
-                # offset from start of entire process
-                # we only look for tokens that are currently masked
-                # (we need to change that, shouldn't be too hard)
-                logit_offset = state['start_pos'] - process_start_pos
-                block_mask_logits = outputs.logits[:, logit_offset + block_mask_locs, :]
+                block_all_logits = outputs.logits[0, true_start:true_end, :]
+                cur_x_t = x_t[0, state['start_pos']:state['end_pos']]
 
-                # sample tokens for this block inpendenty 
-                _, x0, initial_confidence = sample_tokens(block_mask_logits.squeeze(0), self.temperature, self.top_p, self.top_k)
-                all_indices = (initial_confidence > skip_threshold).nonzero().squeeze(-1)
 
-                # if we have a non-zero number of masked logits but non of them was sampled, we keep the highest confidence token
-                if state['is_complete'] and all_indices.numel() == 0 and block_mask_logits.numel() > 0:
-                    all_indices = torch.tensor([torch.argmax(initial_confidence)], device=self.device)
+                # for now, only one block will be active, so we don't need to keep track of ift iterations on a per-block basis
+                x0 = ntis_sample_tokens(block_all_logits, self.temperature, self.top_p, self.top_k, num_ift_steps, cur_ift_step, self.mask_token_id, cur_x_t)
+                x_t[0, state["start_pos"]:state["end_pos"]] = x0
 
-                # update mask count
-                if all_indices.numel() > 0:
-                    updated_block_ids.add(block_id)
-                    positions_to_update = state['start_pos'] + block_mask_locs[all_indices]
-                    x_t[0, positions_to_update] = x0[all_indices]; state['mask_count'] -= all_indices.numel()
-                    if self.tokenizer.eos_token_id in x0[all_indices]: eos_detected = True
+                # update information
+                updated_block_ids.add(block_id)
+                state['mask_count'] = (x0 == self.mask_token_id).sum().item()
+
+                if self.tokenizer.eos_token_id in x0:
+                    print("\tEOT detected!")
+                    eos_detected = True
 
                 # move to deactivation if need be
-                if state['mask_count'] == 0: blocks_to_deactivate.append(block_id)
+                cur_ift_step += 1
+                if cur_ift_step == num_ift_steps: 
+                    print("\tWe have unmasked all tokens")
+                    blocks_to_deactivate.append(block_id)
             
+
+
             # check if we can cache it
             for bid in blocks_to_deactivate:
                 if block_states[bid]['state'] == 'active' and all(block_states.get(i, {}).get('state') != 'active' for i in range(bid)):
@@ -501,7 +571,8 @@ class DreamLoRAInference:
             
             yield live_text, captured_frames, "Generating...", "Generating...", "Generating..."
             
-            
+
+        print("Done generating text")
 
         # Final output
         total_time = time.time() - start_time
