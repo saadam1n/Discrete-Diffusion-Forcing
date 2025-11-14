@@ -394,7 +394,7 @@ class RotaryEmbedding(nn.Module):
             and pos_cos.shape[-2] >= seq_len
             and self.cached_custom_pos is custom_rope_pos
         ):
-            print("Using cached pos!")
+            #print("Using cached pos!")
             if pos_sin.device != device:
                 pos_sin = pos_sin.to(device)
                 self.__cache["rope_pos_sin"] = pos_sin
@@ -404,7 +404,7 @@ class RotaryEmbedding(nn.Module):
             return pos_sin[:, :, :seq_len, :], pos_cos[:, :, :seq_len, :]
 
         with torch.autocast(device.type, enabled=False):
-            print("Cache does not exist or is stale! Refreshing...")
+            #print("Cache does not exist or is stale! Refreshing...")
             dim = self.config.d_model // self.config.n_heads
             inv_freq = 1.0 / (self.rope_theta ** (torch.arange(0, dim, 2, device=device, dtype=torch.float) / dim))
             seq = torch.arange(seq_len, device=device, dtype=torch.float) if custom_rope_pos is None else custom_rope_pos

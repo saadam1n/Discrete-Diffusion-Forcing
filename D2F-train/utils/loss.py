@@ -281,6 +281,8 @@ def compute_normal_loss(
 
     return losses 
 import torch
+import time
+import random
 def compute_llada_loss(
         input_ids,
         denoiser,
@@ -296,19 +298,33 @@ def compute_llada_loss(
         tokenizer
 ):
     mask_id=126336
+
+    # 32k context length is way too much
+    # I wonder how people train models with 1 million context length
+    #input_ids = torch.ones(1, 32768, dtype=input_ids.dtype, device=input_ids.device)
+
     B, L = input_ids.shape
-    noisy_batch, masked_indices, p_mask = forward_process_length(input_ids, mask_id=mask_id,prompt_lengths=question_length, block_size=block_size,eos_id=eos_id)
-    token_positions = torch.arange(L, device=noisy_batch.device).expand(B, L)
+
+    token_positions = torch.arange(L, device=input_ids.device).expand(B, L)
     prompt_mask = (token_positions < question_length.unsqueeze(1))
-    noisy_batch[prompt_mask] = input_ids[prompt_mask]
-    # prompt_mask = prompt_mask.to(torch.int64)
-    noisy_batch = noisy_batch.to(denoiser.device)
-    # print(noisy_batch)
-    attention_mask=build_custom_float_attention_mask(noisy_batch, question_length, block_size, device=noisy_batch.device)
-    attention_mask=attention_mask.to(torch.float16)
-    # print(type(denoiser),noisy_batch.shape,attention_mask.shape)
+
+    use_randomized_masking = (random.random() < 10.1)
+
+    if use_randomized_masking:
+        noisy_batch, masked_indices, p_mask = forward_process_length(input_ids, mask_id=mask_id,prompt_lengths=question_length, block_size=block_size,eos_id=eos_id)
+        noisy_batch = noisy_batch.to(denoiser.device)
+        print("Building attention mask...")
+        start_attn_mask = time.time()
+        attention_mask=build_custom_float_attention_mask(noisy_batch, question_length, block_size, device=noisy_batch.device)
+        attention_mask=attention_mask.to(torch.float16)
+        print(f"Done, attn mask took {time.time() - start_attn_mask}s to build")
+        noisy_batch[prompt_mask] = input_ids[prompt_mask]
+    else:
+        pass
+
+
     custom_rope_pos = torch.arange(L, device=denoiser.device, dtype=torch.float)
-    print("NEW INFERENCE STEP -- START")
+    #print("NEW INFERENCE STEP -- START")
 
     logits=denoiser(noisy_batch,attention_bias=attention_mask, custom_rope_pos=custom_rope_pos).logits
     # logits=shift_logits(logits)
@@ -349,17 +365,20 @@ def compute_llada_loss(
         old_noisy_batch = noisy_batch
 
         # detach shouldn't matter here but idrc
-        noisy_batch = ntis_rl_sample_qxi(
-            logits=logits, 
-            noisy_batch=noisy_batch, 
-            input_ids=input_ids,
-            prompt_mask=prompt_mask,
-            mask_token_id=mask_id
-        ).clone().detach()
+        if use_randomized_masking:
+            noisy_batch = ntis_rl_sample_qxi(
+                logits=logits, 
+                noisy_batch=noisy_batch, 
+                input_ids=input_ids,
+                prompt_mask=prompt_mask,
+                mask_token_id=mask_id
+            ).clone().detach()
+        else:
+            pass
 
         #import pdb;
         #pdb.set_trace()
-        print("NEW INFERENCE STEP -- RL")
+        #print("NEW INFERENCE STEP -- RL")
         logits = denoiser(noisy_batch, attention_bias=attention_mask, custom_rope_pos=custom_rope_pos).logits
         all_logits.append(logits)
 
@@ -406,7 +425,7 @@ def compute_llada_loss(
 
     return losses 
 
-
+import math
 def build_custom_float_attention_mask(input_ids, prompt_length, block_size, device=None):
     B,seq_len= input_ids.shape
     # 初始化为全 -inf
@@ -415,8 +434,16 @@ def build_custom_float_attention_mask(input_ids, prompt_length, block_size, devi
     for i in range(B):
         attn_mask[i,:,:,:prompt_length[i]] = 0.0  # 允许所有 token 看 prompt
 
+
         # 2. 块划分：从 prompt_length 开始划分 block
         num_blocks = (seq_len - prompt_length[i] + block_size - 1) // block_size
+
+        section_num_blocks = int(math.log2(block_size) + 1 + 0.5)
+        total_num_sections = (num_blocks - section_num_blocks + 1)
+        total_num_blocks = total_num_sections * num_blocks
+        total_num_tokens = block_size * total_num_blocks
+
+        #print(f"Prompt length is {prompt_length[i]}, num blocks is {num_blocks}, total length is {num_blocks * block_size}. Total num sections is {total_num_sections}, total num blocks is {total_num_blocks}, total num tokens is {total_num_tokens}")
 
         for b in range(num_blocks):
             block_start = prompt_length[i] + b * block_size

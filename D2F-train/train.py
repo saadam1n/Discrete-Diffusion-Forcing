@@ -102,7 +102,7 @@ def main(args):
         print(f"Cfg {config}")
         print(f"Accelerator info:\n{accelerator.state}")
 
-    exit()
+    #exit()
 
     while not training_done:
         if accelerator.is_main_process:
