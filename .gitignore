@@ -1,3 +1,9 @@
 d2f_vllm
 evals_*
 *.pyc
+
+D2F-train/ckpt*
+D2F-train/D2F-llada-base
+
+D2F-eval/eval_*/
+*.gradio

@@ -10,6 +10,7 @@ import time
 import os
 from typing import List, Dict, Optional, Tuple, Iterator, Set
 import gradio as gr
+import math
 
 # Suppress some Hugging Face warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -90,51 +91,67 @@ def sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, margin_confid
     return confidence, x0, initial_confidence
 
 
-def remask_duplicates_(x0, mask_token_id):
-    i = 0
-    n = x0.shape[0]
+def remask_duplicates(x0, mask_token_id=0):
+    # is each element equal to the next?
 
-    while i < n:
-        search_token = x0[i].item()
+    if x0.ndim == 1:
+        x0 = x0.unsqueeze(0)
+        need_squeeze = True
+    else:
+        need_squeeze = False
 
-        if search_token == mask_token_id:
-            i += 1
-            continue
+    same_contig = (x0[:, 1:] == x0[:, :-1])
 
-        # use a while loop to fix python funkiness
-        j = i + 1
-        while j < n and x0[j] == search_token:
-            j += 1
+    same_n = torch.cat(
+        [
+            same_contig,
+            torch.zeros_like(x0[:, -1:])   
+        ], dim=1
+    )
+    # is each element equal to the prev?
+    same_p = torch.cat(
+        [
+            torch.zeros_like(x0[:, -1:]),   
+            same_contig
+        ], dim=1
+    )
 
-        # remask all duplicated tokens
-        if j - i > 1:
-            x0[i:j] = mask_token_id
+    same = torch.logical_or(same_n, same_p)
 
-        # skip to the next non-duplicated token
-        i = j
+    x0 = torch.where(same, mask_token_id, x0)
+
+    if need_squeeze:
+        x0 = x0.squeeze(0)
+
+    return x0
 
 
-def ntis_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_steps=-1, cur_ift_steps=-1, mask_token_id=-1, cur_x_t=None):
+def ntis_regular_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_steps=-1, cur_ift_steps=-1, mask_token_id=-1, cur_x_t=None, sample_prob=None):
     if temperature > 0: logits = logits / temperature
 
     if top_p is not None and top_p < 1: logits = top_p_logits(logits, top_p)
 
     if top_k is not None: logits = top_k_logits(logits, top_k)
 
-    x0 = torch.argmax(logits, dim=-1)
+
+    if True:
+        x0 = torch.argmax(logits, dim=-1)
+    else:
+        x0 = dists.Categorical(logits=logits).sample()
 
     # remasking for tokens if we are not at the last ift step
     if cur_ift_steps + 1 != num_ift_steps:
         probs = torch.softmax(logits, dim=-1)
+
         x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
 
         #print(f"RMSK STR: {x0}")
-        remask_duplicates_(x0, mask_token_id)
+        x0 = remask_duplicates(x0, mask_token_id)
         #print(f"RMSK DUP: {x0}")
 
 
         # keep tokens that are either 1) very high confidence or 2) were masked previously
-        conf_cond = x0_p > 0.9
+        conf_cond = x0_p > 0.8 if False else x0_p > torch.rand_like(x0_p)
         prev_cond = (cur_x_t == mask_token_id)
         remask_cond = torch.logical_or(conf_cond, prev_cond)
 
@@ -143,12 +160,140 @@ def ntis_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_
 
 
         # remask endoftext or eot_id (==126348) tokens
-        skip_end = torch.logical_or(x0 == mask_token_id, x0 == 126348) 
+        skip_end = torch.logical_or(x0 == 126081, x0 == 126348) 
         x0 = torch.where(skip_end, cur_x_t, x0)
         #print(f"RMSK EOT: {x0}")
 
 
-    return x0
+    return x0, None
+
+def ntis_spec_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_steps=-1, cur_ift_steps=-1, mask_token_id=-1, cur_x_t=None, sample_prob=None):
+    if temperature > 0: logits = logits / temperature
+
+    if top_p is not None and top_p < 1: logits = top_p_logits(logits, top_p)
+
+    if top_k is not None: logits = top_k_logits(logits, top_k)
+
+
+
+    dist = dists.Categorical(logits=logits)
+    x0 = torch.where(cur_x_t == mask_token_id, dist.sample(), cur_x_t)
+
+    probs = dist.probs
+    
+    x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
+
+    if cur_ift_steps + 1 != num_ift_steps:
+        # speculative based remasking
+        if sample_prob is not None:
+            # 1e-3 is a massive elipson designed to get rid of super low prob samples
+            keep_prob = x0_p / (1e-3 + sample_prob)
+            
+            # we technically do not need to check for unmasked but idrc
+            # I like writing good code! 
+            discard = torch.rand_like(keep_prob) > keep_prob
+            unmasked = (cur_x_t != mask_token_id)
+            revert = torch.logical_and(discard, unmasked)
+
+            x0 = torch.where(revert, mask_token_id, x0)
+
+
+
+        # entropy based remasking (better than duplicate-based remasking)
+        # scale entropy so it is not dependent on the number of categories
+        # max entropy of categorial distribution of size |V| is log |V|
+        V = logits.shape[-1]
+
+        entropy_ratio = dist.entropy() / math.log(V)
+        entropy_remask = (entropy_ratio > 0.4)
+        print(x0_p)
+        print(entropy_ratio)
+        print(entropy_remask)
+
+
+
+        x0 = torch.where(entropy_remask, mask_token_id, x0)
+
+        # get rid of eot tokens
+        skip_end = torch.logical_or(x0 == 126081, x0 == 126348) 
+        x0 = torch.where(skip_end, cur_x_t, x0)
+
+        # re-fetch x0_p if any tokens changed
+        # for this sampling algorithm, this does not matter at all
+        x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
+
+
+
+    return x0, x0_p
+
+def ntis_bwd_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_steps=-1, cur_ift_steps=-1, mask_token_id=-1, cur_x_t=None, aux_info=None):
+    if temperature > 0: logits = logits / temperature
+
+    if top_p is not None and top_p < 1: logits = top_p_logits(logits, top_p)
+
+    if top_k is not None: logits = top_k_logits(logits, top_k)
+
+    # define masking schedule ahead of time
+
+    if aux_info is None:
+        unmasking_time = torch.rand_like(cur_x_t, dtype=torch.float32)
+        prev_sample_prob = None
+    else:
+        unmasking_time, prev_sample_prob = aux_info
+
+    current_time = (cur_ift_steps + 1) / (num_ift_steps - 4)
+
+
+
+    if True:
+        x0 = torch.argmax(logits, dim=-1)
+    else:
+        dist = dists.Categorical(logits=logits)
+        x0 = torch.where(cur_x_t == mask_token_id, dist.sample(), cur_x_t)
+
+        probs = dist.probs
+        x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
+
+        if cur_ift_steps + 1 != num_ift_steps and prev_sample_prob is not None:
+            # 1e-3 is a massive elipson designed to get rid of super low prob samples
+            keep_prob = x0_p / (1e-3 + prev_sample_prob)
+
+            keep_token_spec = torch.rand_like(keep_prob) < keep_prob
+            just_unmasked = (cur_x_t == mask_token_id)
+            keep_token = torch.logical_and(keep_token_spec, just_unmasked)
+
+            x0 = torch.where(keep_token, x0, mask_token_id)
+
+        x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
+
+        prev_sample_prob = x0_p
+
+    if False:
+        should_unmask = unmasking_time < current_time
+    else:
+        num_tokens = cur_x_t.shape[-1]
+
+        power = 1 << (cur_ift_steps + 1)
+        divisor = num_tokens // power
+        if divisor == 0:
+            divisor = 1
+
+        token_pos = torch.arange(start=0, end=num_tokens, device=cur_x_t.device)
+        remainder = torch.remainder(token_pos, divisor)
+
+        should_unmask = (remainder == 0)
+
+    x0 = torch.where(should_unmask, x0, mask_token_id)
+
+    if cur_ift_steps + 1 != num_ift_steps:
+        # get rid of eot tokens
+        skip_end = torch.logical_or(x0 == 126081, x0 == 126348) 
+        x0 = torch.where(skip_end, cur_x_t, x0)
+
+
+
+    return x0, (unmasking_time, prev_sample_prob)
+
 
 class DreamLoRAInference:
     CSS = """
@@ -479,7 +624,7 @@ class DreamLoRAInference:
                     new_block_id = last_block_id + 1; new_start_pos = x_t.shape[1]
                     if new_start_pos + block_size <= self.max_length:
                         x_t = torch.cat([x_t, torch.full((1, block_size), self.mask_token_id, device=self.device, dtype=torch.long)], dim=1)
-                        block_states[new_block_id] = {'start_pos': new_start_pos, 'end_pos': new_start_pos + block_size, 'mask_count': block_size, 'total_masks': block_size, 'state': 'active', 'is_complete': False}
+                        block_states[new_block_id] = {'start_pos': new_start_pos, 'end_pos': new_start_pos + block_size, 'mask_count': block_size, 'total_masks': block_size, 'state': 'active', 'is_complete': False, "sample_prob": None}
                         current_blocks += 1
 
 
@@ -535,8 +680,20 @@ class DreamLoRAInference:
 
 
                 # for now, only one block will be active, so we don't need to keep track of ift iterations on a per-block basis
-                x0 = ntis_sample_tokens(block_all_logits, self.temperature, self.top_p, self.top_k, num_ift_steps, cur_ift_step, self.mask_token_id, cur_x_t)
+                x0, next_sample_prob = ntis_bwd_sample_tokens(
+                    block_all_logits, 
+                    self.temperature, 
+                    self.top_p, 
+                    self.top_k, 
+                    num_ift_steps, 
+                    cur_ift_step, 
+                    self.mask_token_id, 
+                    cur_x_t, 
+                    state["sample_prob"]
+                )
                 x_t[0, state["start_pos"]:state["end_pos"]] = x0
+
+                state["sample_prob"] = next_sample_prob
 
                 # update information
                 updated_block_ids.add(block_id)
@@ -604,7 +761,8 @@ class DreamLoRAInference:
 if __name__ == "__main__":
     config = {
         "pretrained_path": "GSAI-ML/LLaDA-8B-Instruct",
-        "lora_path": "SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora",
+        #"lora_path": "SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora",
+        "lora_path": "../D2F-train/ckpt_llada_instruct_beta_sampling_1.2/llada_ddt_maskteacher/ddt_test/Decoder-llada_ddt_maskteacher-20k",
         "device": "cuda", "dtype": "bfloat16", "max_length": 4096,
         "temperature": 0.0, "top_p": None, "top_k": None, "mask_token_id": 126336,
         "sampling_strategy": "default",

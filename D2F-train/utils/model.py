@@ -36,16 +36,18 @@ def get_llada(config):
     
     config_obj=LLaDAConfig.from_pretrained(model_path)
     model = LLaDAModelLM.from_pretrained(model_path,config=config_obj)
-    # print(model.named_modules())
+    print(model.named_modules())
     # print(model,"model
     # print(model)
     # exit()
     for param in model.parameters():
         param.requires_grad = False
     tokenizer=AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-    peft_config = LoraConfig(r=32, lora_alpha=32, lora_dropout=0.1,target_modules=["q_proj", "v_proj","k_proj", "attn_out"],)
+    # unlike base D2F, we also train FFN layer
+    peft_config = LoraConfig(r=32, lora_alpha=32, lora_dropout=0.1,target_modules=["q_proj", "v_proj","k_proj", "attn_out", "ff_proj", "ff_out", "up_proj"],)
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
+
     return model, tokenizer
 # def create_attention_mask(input_ids, mask_id):
 #     """

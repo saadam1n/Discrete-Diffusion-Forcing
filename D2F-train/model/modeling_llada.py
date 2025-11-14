@@ -374,15 +374,27 @@ class RotaryEmbedding(nn.Module):
         self.__cache = cache
         # Warm up cache.
         self.rope_theta = config.rope_theta
+        self.cached_custom_pos = None
         self.get_rotary_embedding(config.max_sequence_length, _non_meta_init_device(config))
 
-    def get_rotary_embedding(self, seq_len: int, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
+    def get_rotary_embedding(self, seq_len: int, device: torch.device, custom_rope_pos: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        if custom_rope_pos is None:
+            print("Using default rope positions")
+        else:
+            print("Using custom rope pos!")    
+        """
+
+
+
         if (
             (pos_sin := self.__cache.get("rope_pos_sin")) is not None
             and (pos_cos := self.__cache.get("rope_pos_cos")) is not None
             and pos_sin.shape[-2] >= seq_len
             and pos_cos.shape[-2] >= seq_len
+            and self.cached_custom_pos is custom_rope_pos
         ):
+            print("Using cached pos!")
             if pos_sin.device != device:
                 pos_sin = pos_sin.to(device)
                 self.__cache["rope_pos_sin"] = pos_sin
@@ -392,12 +404,14 @@ class RotaryEmbedding(nn.Module):
             return pos_sin[:, :, :seq_len, :], pos_cos[:, :, :seq_len, :]
 
         with torch.autocast(device.type, enabled=False):
+            print("Cache does not exist or is stale! Refreshing...")
             dim = self.config.d_model // self.config.n_heads
             inv_freq = 1.0 / (self.rope_theta ** (torch.arange(0, dim, 2, device=device, dtype=torch.float) / dim))
-            seq = torch.arange(seq_len, device=device, dtype=torch.float)
+            seq = torch.arange(seq_len, device=device, dtype=torch.float) if custom_rope_pos is None else custom_rope_pos
             freqs = einsum("i , j -> i j", seq, inv_freq)
             positions = torch.cat((freqs, freqs), dim=-1)
             pos_sin, pos_cos = positions.sin()[None, None, :, :], positions.cos()[None, None, :, :]
+            self.cached_custom_pos = custom_rope_pos
         self.__cache["rope_pos_sin"] = pos_sin
         self.__cache["rope_pos_cos"] = pos_cos
         return pos_sin, pos_cos
@@ -411,7 +425,7 @@ class RotaryEmbedding(nn.Module):
     def apply_rotary_pos_emb(self, pos_sin: torch.Tensor, pos_cos: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         return ((t * pos_cos) + (self.rotate_half(t) * pos_sin)).to(t.dtype)
 
-    def forward(self, q: torch.Tensor, k: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, q: torch.Tensor, k: torch.Tensor, custom_rope_pos: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.config.rope_full_precision:
             q_, k_ = q.float(), k.float()
         else:
@@ -419,7 +433,7 @@ class RotaryEmbedding(nn.Module):
 
         with torch.autocast(q.device.type, enabled=False):
             query_len, key_len = q_.shape[-2], k_.shape[-2]  # could be different if layer_past not None
-            pos_sin, pos_cos = self.get_rotary_embedding(key_len, q_.device)
+            pos_sin, pos_cos = self.get_rotary_embedding(key_len, q_.device, custom_rope_pos)
             pos_sin = pos_sin.type_as(q_)
             pos_cos = pos_cos.type_as(q_)
             q_ = self.apply_rotary_pos_emb(
@@ -669,9 +683,11 @@ class LLaDABlock(nn.Module):
         attention_bias: Optional[torch.Tensor] = None,
         layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         use_cache: bool = False,
+        custom_rope_pos: torch.Tensor = None
     ) -> Tuple[torch.Tensor, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         B, T, C = q.size()  # batch size, sequence length, d_model
         dtype = k.dtype
+        #print(f"RECV ROPE LLaDABlock {'YES' if custom_rope_pos is not None else 'NO'}")
 
         # Optionally apply layer norm to keys and queries.
         if self.q_norm is not None and self.k_norm is not None:
@@ -696,7 +712,7 @@ class LLaDABlock(nn.Module):
 
         if self.config.rope:
             # Apply rotary embeddings.
-            q, k = self.rotary_emb(q, k)
+            q, k = self.rotary_emb(q, k, custom_rope_pos)
 
         # if attention_bias is not None:
         #     # Resize and cast attention bias.
@@ -891,6 +907,7 @@ class LLaDALlamaBlock(LLaDABlock):
         attention_bias: Optional[torch.Tensor] = None,
         layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         use_cache: bool = False,
+        custom_rope_pos: torch.Tensor = None
     ) -> Tuple[torch.Tensor, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         # Get query, key, value projections.
         # shape:
@@ -908,10 +925,10 @@ class LLaDALlamaBlock(LLaDABlock):
         # Get attention scores.
         if self._activation_checkpoint_fn is not None:
             att, cache = self._activation_checkpoint_fn(  # type: ignore
-                self.attention, q, k, v, attention_bias, layer_past=layer_past, use_cache=use_cache
+                self.attention, q, k, v, attention_bias, layer_past=layer_past, use_cache=use_cache, custom_rope_pos=custom_rope_pos
             )
         else:
-            att, cache = self.attention(q, k, v, attention_bias, layer_past=layer_past, use_cache=use_cache)
+            att, cache = self.attention(q, k, v, attention_bias, layer_past=layer_past, use_cache=use_cache, custom_rope_pos=custom_rope_pos)
 
         # Add attention scores.
         # shape: (B, T, C)
@@ -1172,6 +1189,7 @@ class LLaDAModel(nn.Module):
         update_kvcache: bool = False,
         last_logits_only: bool = False,
         output_hidden_states: Optional[bool] = None,
+        custom_rope_pos = None,
     ) -> LLaDAOutput:
         """
         :param input_ids: A tensor of shape `(batch_size, seq_len)`.
@@ -1208,6 +1226,7 @@ class LLaDAModel(nn.Module):
         assert not self.config.alibi, "Alibi length extrapolation is not supported for MDM."
         assert self.config.rope, "Rope must be used in Llama-Encoder for MDM."
         # assert (past_key_values is None and not use_cache), "The kvcache is not suppotred for MDM."
+        #print(f"RECV ROPE LLaDAModel {'YES' if custom_rope_pos is not None else 'NO'}")
 
         output_hidden_states = output_hidden_states if output_hidden_states is not None else False
 
@@ -1314,11 +1333,11 @@ class LLaDAModel(nn.Module):
                 ):
                     # shape: (batch_size, seq_len, d_model)
                     x, cache = self._activation_checkpoint_fn(
-                        block, x, attention_bias=attention_bias, layer_past=layer_past, use_cache=use_cache
+                        block, x, attention_bias=attention_bias, layer_past=layer_past, use_cache=use_cache, custom_rope_pos=custom_rope_pos
                     )
                 else:
                     # shape: (batch_size, seq_len, d_model)
-                    x, cache = block(x, attention_bias=attention_bias, layer_past=layer_past, use_cache=use_cache)
+                    x, cache = block(x, attention_bias=attention_bias, layer_past=layer_past, use_cache=use_cache, custom_rope_pos=custom_rope_pos)
                 if attn_key_values is not None:
                     if update_kvcache == True:
                         attn_key_values.append(cache)
@@ -1336,7 +1355,7 @@ class LLaDAModel(nn.Module):
                     ]
                 )
                 x, cache = block_group(
-                    x, attention_bias=attention_bias, layers_past=layers_past, use_cache=use_cache
+                    x, attention_bias=attention_bias, layers_past=layers_past, use_cache=use_cache, custom_rope_pos=custom_rope_pos
                 )
                 if attn_key_values is not None:
                     assert cache is not None
@@ -1412,6 +1431,7 @@ class LLaDAModelLM(PreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[Cache] = None,  # This is a hack mitigation of an issue in transformers `4.39.x`
+        custom_rope_pos: torch.Tensor = None
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         if use_cache is None:
             use_cache = self.config.use_cache
@@ -1422,6 +1442,7 @@ class LLaDAModelLM(PreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
+        #print(f"RECV ROPE LLaDAModelLM {'YES' if custom_rope_pos is not None else 'NO'}")
         outputs = self.model.forward(
             input_ids=input_ids,
             input_embeddings=inputs_embeds,
@@ -1430,6 +1451,7 @@ class LLaDAModelLM(PreTrainedModel):
             past_key_values=past_key_values,
             use_cache=use_cache,
             output_hidden_states=output_hidden_states,
+            custom_rope_pos=custom_rope_pos
         )
 
         logits = outputs.logits

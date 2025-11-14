@@ -21,6 +21,7 @@ from peft import PeftConfig, PeftModel
 import numpy as np  # Add numpy import
 import os
 import jinja2
+import pandas as pd
 
 # Import LLaDA model related modules
 from model_cache.llada.modeling_llada import LLaDAModelLM
@@ -255,10 +256,12 @@ def ntis_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_
 
     x0 = torch.argmax(logits, dim=-1)
 
+    original_x0 = x0.clone()
+
     # remasking for tokens if we are not at the last ift step
+    probs = torch.softmax(logits, dim=-1)
+    x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
     if cur_ift_steps + 1 != num_ift_steps:
-        probs = torch.softmax(logits, dim=-1)
-        x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
 
         #print(f"RMSK STR: {x0}")
         remask_duplicates_(x0, mask_token_id)
@@ -273,6 +276,10 @@ def ntis_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_
         x0 = torch.where(remask_cond, x0, mask_token_id)
         #print(f"RMSK LOW: {x0}")
 
+        # remask super low confidence tokens (needed for D2F which seems to perform really poorly sometimes)
+        #low_conf_cond = x0_p > 0.25
+        #x0 = torch.where(low_conf_cond, x0, mask_token_id)
+
 
         # remask endoftext or eot_id (==126348) tokens
         skip_end = torch.logical_or(x0 == eot_token_id, x0 == 126348) 
@@ -280,7 +287,78 @@ def ntis_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_
         #print(f"RMSK EOT: {x0}")
 
 
-    return x0
+    return x0, x0_p, original_x0
+
+def ntis_bwd_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_ift_steps=-1, cur_ift_steps=-1, mask_token_id=-1, cur_x_t=None, aux_info=None):
+    if temperature > 0: logits = logits / temperature
+
+    if top_p is not None and top_p < 1: logits = top_p_logits(logits, top_p)
+
+    if top_k is not None: logits = top_k_logits(logits, top_k)
+
+    # define masking schedule ahead of time
+
+    if aux_info is None:
+        unmasking_time = torch.rand_like(cur_x_t, dtype=torch.float32)
+        prev_sample_prob = None
+    else:
+        unmasking_time, prev_sample_prob = aux_info
+
+    current_time = (cur_ift_steps + 1) / (num_ift_steps - 4)
+
+
+
+    if True:
+        x0 = torch.argmax(logits, dim=-1)
+
+        # for cs 4650 project
+        x0 = torch.where(cur_x_t != mask_token_id, cur_x_t, x0)
+    else:
+        dist = dists.Categorical(logits=logits)
+        x0 = torch.where(cur_x_t == mask_token_id, dist.sample(), cur_x_t)
+
+        probs = dist.probs
+        x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
+
+        if cur_ift_steps + 1 != num_ift_steps and prev_sample_prob is not None:
+            # 1e-3 is a massive elipson designed to get rid of super low prob samples
+            keep_prob = x0_p / (1e-3 + prev_sample_prob)
+
+            keep_token_spec = torch.rand_like(keep_prob) < keep_prob
+            just_unmasked = (cur_x_t == mask_token_id)
+            keep_token = torch.logical_and(keep_token_spec, just_unmasked)
+
+            x0 = torch.where(keep_token, x0, mask_token_id)
+
+        x0_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
+
+        prev_sample_prob = x0_p
+
+    if False:
+        should_unmask = unmasking_time < current_time
+    else:
+        num_tokens = cur_x_t.shape[-1]
+
+        power = 1 << (cur_ift_steps + 1)
+        divisor = num_tokens // power
+        if divisor == 0:
+            divisor = 1
+
+        token_pos = torch.arange(start=0, end=num_tokens, device=cur_x_t.device)
+        remainder = torch.remainder(token_pos, divisor)
+
+        should_unmask = (remainder == 0)
+
+    x0 = torch.where(should_unmask, x0, mask_token_id)
+
+    if cur_ift_steps + 1 != num_ift_steps:
+        # get rid of eot tokens
+        skip_end = torch.logical_or(x0 == 126081, x0 == 126348) 
+        x0 = torch.where(skip_end, cur_x_t, x0)
+
+
+
+    return x0, (unmasking_time, prev_sample_prob)
 
 @register_model("dream_lora")
 class DreamLoRA(TemplateLM):
@@ -651,6 +729,288 @@ class DreamLoRA(TemplateLM):
     def tokenizer_name(self) -> str:
         return self.tokenizer.name_or_path.replace("/", "__")
 
+    def _generate_block_single_regular(self, prompt):
+        """
+        Generates a response for a single prompt using parallel block generation, based on KV cache, and uses pre-generated attention masks.
+        Returns: generated_sequence (List[int]) - List of generated token IDs
+        """
+        self.model.eval()
+        
+        mask_id = self.mask_token_id
+        block_size = self.block_size
+        block_add_threshold = self.block_add_threshold
+        skip_threshold = self.skip_threshold
+        
+        # Pre-generate the full attention mask, using the model's data type
+        prompt_length = prompt.shape[1]
+        full_attention_mask = create_full_block_attention_mask(
+            prompt_length=prompt_length,
+            max_length=self.max_length,
+            block_size=block_size,
+            device=self.device,
+            dtype=self.target_dtype if self.target_dtype is not None and self.target_dtype != "auto" else torch.bfloat16
+        )
+        
+        with torch.inference_mode():
+            # Initialization
+            x_t = prompt.to(self.device)
+            
+            # Track block states - states can be: 'active', 'to_cache', 'in_cache'
+            # Added 'is_complete' field to indicate whether it's a complete state (True) or incomplete state (False)
+            block_states = {
+                0: {
+                    'start_pos': 0,
+                    'end_pos': prompt.shape[1],
+                    'mask_count': 0,
+                    'total_masks': prompt.shape[1],
+                    'state': 'to_cache',  # Prompt is immediately ready for caching
+                    'is_complete': True,  # Prompt is always in a complete state
+                },
+            }
+            
+            # Initialize cache
+            past_key_values = None
+            
+            current_blocks = 0  # Number of active blocks
+            step = 0
+            eos_detected = False  # EOS detection flag
+            cache_length = 0
+            while current_blocks >= 0:
+                step += 1
+                
+                # Check if a new block needs to be added
+                if len(block_states)-1 < (self.max_new_tokens // block_size) and not eos_detected:
+                    last_block_id = len(block_states) - 1
+                    current_progress = (block_states[last_block_id]['total_masks'] - 
+                                      block_states[last_block_id]['mask_count']) / block_states[last_block_id]['total_masks']
+                    if current_progress >= block_add_threshold:
+                        # Add new block
+                        new_block_id = len(block_states)
+                        new_start_pos = x_t.shape[1]
+                        x_t = torch.cat([x_t, torch.tensor([[mask_id] * block_size]).to(self.device)], dim=1)
+                        
+                        block_states[new_block_id] = {
+                            'start_pos': new_start_pos,
+                            'end_pos': new_start_pos + block_size,
+                            'mask_count': block_size,
+                            'total_masks': block_size,
+                            'state': 'active',
+                            'is_complete': False,  # New block defaults to an incomplete state
+                        }
+                        current_blocks += 1
+                
+                # At the beginning of each loop, update the block's complete/incomplete states
+                self._update_block_completion_states(block_states, self.decoded_token_threshold)
+                # Check if there are still mask tokens
+                mask_index = (x_t == mask_id)
+                if mask_index.sum() == 0 and current_blocks == 0:
+                    break
+                
+                # Determine which blocks need to be added to the cache
+                blocks_to_cache = [bid for bid, state in block_states.items() 
+                                if state['state'] == 'to_cache']
+                    
+                # Determine the part to be processed
+                update_kvcache = 0
+                if blocks_to_cache:
+                    # Find the earliest block to be cached
+                    earliest_block_id = min(blocks_to_cache)
+                    earliest_pos = block_states[earliest_block_id]['start_pos']
+                    
+                    # Find the latest block to be cached
+                    latest_block_id = max(blocks_to_cache)
+                    latest_pos = block_states[latest_block_id]['end_pos']
+                    
+                    # Update the cache for all blocks within this range
+                    update_kvcache = latest_pos - earliest_pos
+                
+                # Create input sequence for forward pass
+                process_start_pos = cache_length
+                
+                if update_kvcache > 0:
+                    # Need to update cache - use completed blocks
+                    earliest_block_to_cache = min(blocks_to_cache)
+                    input_seq = x_t[:, block_states[earliest_block_to_cache]['start_pos']:]
+                    process_start_pos = block_states[earliest_block_to_cache]['start_pos']
+                else:
+                    # Only process active blocks
+                    active_blocks = [bid for bid, state in block_states.items() if state['state'] == 'active']
+                    if active_blocks:
+                        # Get all active blocks after caching
+                        earliest_active_after_cache = float('inf')
+                        for bid in active_blocks:
+                            if block_states[bid]['start_pos'] >= cache_length:
+                                earliest_active_after_cache = min(earliest_active_after_cache, block_states[bid]['start_pos'])
+                        
+                        if earliest_active_after_cache < float('inf'):
+                            input_seq = x_t[:, earliest_active_after_cache:]
+                            process_start_pos = earliest_active_after_cache
+                        else:
+                            # No active blocks after caching, this should not happen
+                            input_seq = x_t[:, cache_length:]
+                            # If cache length is already equal to or exceeds sequence length, exit
+                            if cache_length >= x_t.shape[1]:
+                                print(f"Cache length ({cache_length}) >= sequence length ({x_t.shape[1]}) at step {step}. Exiting generation loop.")
+                                raise Exception("Cache length >= sequence length")
+                    else:
+                        # No active blocks, but blocks might need to be cached in the next iteration
+                        break
+                
+                # Check if input_seq is empty
+                if input_seq.shape[1] == 0:
+                    print(f"Warning: input_seq is empty at step {step}. Breaking generation loop.")
+                    raise Exception("input_seq is empty")
+                
+                # Extract the attention mask for the current input from the pre-generated full mask
+                input_length = input_seq.shape[1]
+                attention_mask = extract_attention_mask(
+                    full_mask=full_attention_mask,
+                    start_pos=process_start_pos,
+                    input_length=input_length,
+                    cache_length=cache_length
+                )
+
+                outputs = self.model(
+                    input_seq,
+                    attention_bias=attention_mask,
+                    past_key_values=past_key_values,
+                    use_cache=True,
+                    update_kvcache=update_kvcache+cache_length,
+                )
+                
+                # Get current logits - LLaDA model directly uses logits, no shifting needed
+                logits = outputs.logits
+                
+                # Update cache if needed
+                if update_kvcache > 0:
+                    # Update cache
+                    past_key_values = outputs.past_key_values
+                    
+                    # Mark blocks as cached
+                    for block_id in blocks_to_cache:
+                        block_states[block_id]['state'] = 'in_cache'
+                
+                # Process mask tokens for each active block
+                blocks_to_deactivate = []
+                
+                for block_id in sorted(block_states.keys()):
+                    if block_states[block_id]['state'] != 'active':
+                        continue
+                        
+                    # Get mask positions for this block
+                    block_start = block_states[block_id]['start_pos']
+                    block_end = block_states[block_id]['end_pos']
+                    block_mask_index = mask_index.clone()
+                    block_mask_index[:, :block_start] = False
+                    block_mask_index[:, block_end:] = False
+
+                    # Skip if the current block has no masks
+                    if block_mask_index.sum() == 0:
+                        blocks_to_deactivate.append(block_id)
+                        continue
+                    
+                    
+                    # Calculate relative position of logits
+                    logit_offset = block_start - process_start_pos
+                    block_rel_positions = torch.where(block_mask_index[0, block_start:block_end])[0]
+                    
+                    
+                    if block_rel_positions.size(0) > 0:
+                        # Get logits for masked positions
+                        block_mask_logits = logits[:, logit_offset + block_rel_positions, :]
+                    
+                        # Sample tokens
+                        confidence, x0, initial_confidence = sample_tokens(
+                            block_mask_logits.squeeze(0), 
+                            self.temperature, 
+                            top_p=self.top_p, 
+                            top_k=self.top_k, 
+                            neg_entropy=(self.sampling_strategy == "neg_entropy"),
+                            margin_confidence=(self.sampling_strategy == "margin_confidence")
+                        )
+                        
+                        # Use different sampling strategies based on the block's complete/incomplete state
+                        is_complete = block_states[block_id]['is_complete']
+                        
+                        if is_complete:
+                            # Complete state: apply confidence threshold, if no high confidence, select the highest
+                            high_conf_indices = torch.where(initial_confidence > skip_threshold)[0]
+                            
+                            if len(high_conf_indices) == 0:
+                                number_transfer_tokens = 1
+                                _, transfer_index = torch.topk(confidence, number_transfer_tokens)
+                            else:
+                                transfer_index = torch.tensor([], device=self.device, dtype=torch.long)
+                            
+                            # Merge indices
+                            all_indices = torch.unique(torch.cat([transfer_index, high_conf_indices]))
+                        else:
+                            # Incomplete state: only apply confidence threshold, if no tokens exceed the threshold, select none
+                            high_conf_indices = torch.where(initial_confidence > skip_threshold)[0]
+                            all_indices = high_conf_indices
+                        
+                        # Update tokens
+                        if len(all_indices) > 0:
+                            x0_ = torch.zeros_like(x0, device=self.device, dtype=torch.long) + mask_id
+                            x0_[all_indices] = x0[all_indices].clone()
+                                
+                            # Map indices back to original positions
+                            for i, idx in enumerate(all_indices):
+                                abs_pos = block_start + block_rel_positions[idx]
+                                x_t[0, abs_pos] = x0_[idx]
+                            
+                            # Update block state
+                            block_states[block_id]['mask_count'] -= len(all_indices)
+                            
+                            # Check for EOS token
+                            eos_token_id = 126081
+                            if eos_token_id is not None:
+                                for idx in all_indices:
+                                    if x0[idx].item() == eos_token_id:
+                                        eos_detected = True
+                                        break
+
+                    # Deactivate this block if no masks remain
+                    mask_index = (x_t == mask_id)
+                    block_mask_index = mask_index.clone()
+                    block_mask_index[:, :block_start] = False
+                    block_mask_index[:, block_end:] = False
+                    if block_mask_index.sum() == 0:
+                        blocks_to_deactivate.append(block_id)
+                        continue
+                
+                # Deactivate completed blocks and mark them for caching in the next iteration
+                for block_id in blocks_to_deactivate:
+                    if block_states[block_id]['state'] == 'active':
+                        # Check if all preceding blocks are already in a non-active state
+                        can_deactivate = True
+                        for prev_block_id in range(block_id):
+                            if prev_block_id in block_states and block_states[prev_block_id]['state'] == 'active':
+                                can_deactivate = False
+                                break
+                        
+                        # Only mark the current block as 'to_cache' if all preceding blocks are not active
+                        if can_deactivate:
+                            block_states[block_id]['state'] = 'to_cache'
+                            current_blocks -= 1
+                        # If there are active preceding blocks, keep the current block in active state (do nothing)
+
+                if update_kvcache > 0:
+                    cache_length += update_kvcache
+                # Safety check
+                if step > 10000:
+                    print(f"WARNING: Hit safety check at step {step}. Exiting generation loop.")
+                    break
+
+                current_text = self.tokenizer.decode(x_t[0, prompt.shape[1]:].tolist(),skip_special_tokens=False)
+        
+        # Generate final answer
+        generated_sequence = x_t[0, prompt.shape[1]:].tolist()
+        
+        return generated_sequence
+
+
+
     def _generate_block_single(self, prompt):
         """
         Generates a response for a single prompt using parallel block generation, based on KV cache, and uses pre-generated attention masks.
@@ -673,6 +1033,8 @@ class DreamLoRA(TemplateLM):
             dtype=self.target_dtype if self.target_dtype is not None and self.target_dtype != "auto" else torch.bfloat16
         )
         
+        #print(f"Prompt len is {prompt_length}")
+
         with torch.inference_mode():
             # Initialization
             x_t = prompt.to(self.device)
@@ -719,10 +1081,13 @@ class DreamLoRA(TemplateLM):
                             'mask_count': block_size,
                             'total_masks': block_size,
                             'state': 'active',
-                            'is_complete': False,  # New block defaults to an incomplete state
+                            'is_complete': False,  # New block defaults to an incomplete state,
+                            'aux_info': None
                         }
                         current_blocks += 1
                 
+                #print(f"\tBlock size {block_size} current ift step {cur_ift_step + 1}/{num_ift_steps}")
+
                 # At the beginning of each loop, update the block's complete/incomplete states
                 self._update_block_completion_states(block_states, self.decoded_token_threshold)
                 # Check if there are still mask tokens
@@ -821,31 +1186,72 @@ class DreamLoRA(TemplateLM):
                 blocks_to_deactivate = []
                 
                 for block_id, state in block_states.items():
-                        if state['state'] != 'active': continue
+                    if state['state'] != 'active': continue
 
-                        true_start = state['start_pos'] - process_start_pos
-                        true_end = state['end_pos'] - process_start_pos
+                    true_start = state['start_pos'] - process_start_pos
+                    true_end = state['end_pos'] - process_start_pos
 
-                        block_all_logits = outputs.logits[0, true_start:true_end, :]
-                        cur_x_t = x_t[0, state['start_pos']:state['end_pos']]
+                    block_all_logits = outputs.logits[0, true_start:true_end, :]
+                    cur_x_t = x_t[0, state['start_pos']:state['end_pos']]
 
 
-                        # for now, only one block will be active, so we don't need to keep track of ift iterations on a per-block basis
-                        x0 = ntis_sample_tokens(block_all_logits, self.temperature, self.top_p, self.top_k, num_ift_steps, cur_ift_step, self.mask_token_id, self.tokenizer.eos_token_id, cur_x_t)
-                        x_t[0, state["start_pos"]:state["end_pos"]] = x0
+                    # for now, only one block will be active, so we don't need to keep track of ift iterations on a per-block basis
+                    #print(f"EOS is {self.tokenizer.eos_token_id}")
+                    x0, updated_aux_info = ntis_bwd_sample_tokens(
+                        block_all_logits, 
+                        self.temperature, 
+                        self.top_p, 
+                        self.top_k, 
+                        num_ift_steps, 
+                        cur_ift_step, 
+                        self.mask_token_id, 
+                        cur_x_t,
+                        state["aux_info"]
+                    )
+                    state["aux_info"] = updated_aux_info
+                    
+                    #print(f"\tWe have unmasked all tokens. Final output:\n{self.tokenizer.batch_decode(x0.tolist())}")
 
-                        # update information
-                        state['mask_count'] = (x0 == self.mask_token_id).sum().item()
 
-                        if self.tokenizer.eos_token_id in x0:
-                            print("\tEOT detected!")
-                            eos_detected = True
+                    """
+                    t_seq = x0.tolist()
+                    s_seq = self.tokenizer.batch_decode(t_seq)
+                    
 
-                        # move to deactivation if need be
-                        cur_ift_step += 1
-                        if cur_ift_step == num_ift_steps: 
-                            print("\tWe have unmasked all tokens")
-                            blocks_to_deactivate.append(block_id)
+                    df_dict = dict()
+                    df_dict["Confidence"] = conf.tolist()
+                    df_dict["Current String"] = s_seq
+                    df_dict["Current Token"] = t_seq
+
+
+                    old_t_seq = t_seq
+
+                    t_seq = raw_argmax.tolist()
+                    s_seq = self.tokenizer.batch_decode(t_seq)
+
+                    df_dict["Original String"] = s_seq
+                    df_dict["Original Token"] = t_seq
+
+                    df = pd.DataFrame(
+                        df_dict
+                    )
+
+                    print(df.to_string(), "\n\n")
+                    """
+
+                    x_t[0, state["start_pos"]:state["end_pos"]] = x0
+
+                    # update information
+                    state['mask_count'] = (x0 == self.mask_token_id).sum().item()
+
+                    if self.tokenizer.eos_token_id in x0:
+                        #print("\tEOT detected!")
+                        eos_detected = True
+
+                    # move to deactivation if need be
+                    cur_ift_step += 1
+                    if cur_ift_step == num_ift_steps: 
+                        blocks_to_deactivate.append(block_id)
                 
                 # Deactivate completed blocks and mark them for caching in the next iteration
                 for block_id in blocks_to_deactivate:
@@ -891,13 +1297,14 @@ class DreamLoRA(TemplateLM):
         
         for i, req in enumerate(requests):
             question = req.args[0]
-            # print("question:",question)
+            #print(f"Question:\n{question}")
             # exit()
             gen_kwargs = req.args[1]
             
             # Process input in LLaDA.py style
             # print("Self.add_bos_token:", self.add_bos_token)
             contexts = [question]
+            
             if self.add_bos_token:
                 contexts = [self.tokenizer.bos_token + p for p in contexts]
             
@@ -923,7 +1330,7 @@ class DreamLoRA(TemplateLM):
             cont_toks_list = self.tokenizer.batch_decode([generated_answer], skip_special_tokens=True)
             s = cont_toks_list[0]  # Take the first (and only) result
 
-            print(f"\tOutput is {s}")
+            #print(f"\tOutput is:\n{s}")
             
             # Use unified token counting function
             if self.show_speed:
@@ -1203,5 +1610,81 @@ class DreamLoRA(TemplateLM):
 
 
 if __name__ == "__main__":
+
+    """
+        self,
+        pretrained: Union[str, transformers.PreTrainedModel],
+        lora_path: str,
+        batch_size: Optional[Union[int, str]] = 1,
+        device: Optional[str] = "cuda",
+        dtype: Optional[Union[str, torch.dtype]] = "auto",
+        max_new_tokens: Optional[int] = 128,
+        max_length: Optional[int] = 4096,  # Updated to match example code
+        add_bos_token: Optional[bool] = False,
+        nll_type: Optional[str] = "mc",
+        log_type: Optional[str] = "ftb",
+        mc_num: Optional[int] = 128,
+        classifier_free_guidance: Optional[float] = 1.0,
+        sampling_eps: Optional[float] = 1e-3,
+        diffusion_steps: Optional[int] = 128,
+        trust_remote_code: Optional[bool] = True,
+        parallelize: Optional[bool] = False,
+        autogptq: Optional[Union[bool, str]] = False,
+        temperature: Optional[float] = 0.2,  # Updated default value
+        top_p: Optional[float] = None,  # Updated default value
+        top_k: Optional[float] = None,
+        alg: Optional[str] = "entropy",
+        alg_temp: Optional[float] = 0.0,
+        escape_until: Optional[bool] = False,
+        block_size: Optional[int] = 4,  # Updated to match example code
+        mask_token_id: Optional[int] = 126336,  # Added mask_token_id parameter
+        block_add_threshold: Optional[float] = 0.5,  # Added block_add_threshold parameter
+        decoded_token_threshold: Optional[float] = 0.9,  # Added decoded token threshold parameter
+        skip_threshold: Optional[float] = 1.0,  # Added skip_threshold parameter
+        sampling_strategy: Optional[str] = "default",  # Added sampling strategy parameter
+        save_dir: Optional[str] = None,  # Added save directory parameter
+        show_speed: Optional[bool] = True,  # Added speed statistics parameter
+        **kwargs,
+    """
+
+    """
+    config = {
+        "pretrained": "GSAI-ML/LLaDA-8B-Instruct",
+        "lora_path": "SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora",
+        "device": "cuda", "dtype": "bfloat16", "max_length": 4096,
+        "temperature": 0.0, "top_p": None, "top_k": None, "mask_token_id": 126336,
+        "sampling_strategy": "default", "block_size":16
+    }
+    inference_engine = DreamLoRA(**config)
+    
+    contexts = ["What is a cat?"]
+    if inference_engine.add_bos_token:
+        contexts = [inference_engine.tokenizer.bos_token + p for p in contexts]
+
+    context_enc, attn_masks = inference_engine.tok_batch_encode(
+        contexts,
+        truncation=inference_engine.truncation,
+    )
+
+
+    
+    input_ids = context_enc[0].unsqueeze(0)  # Take the first one and add batch dimension
+    
+    # Add length check
+    if input_ids.shape[1] > inference_engine.max_length - inference_engine.max_new_tokens:
+        eval_logger.warning(f"Prompt length {input_ids.shape[1]} is larger than {inference_engine.max_length-inference_engine.max_new_tokens}, cutoff on the left side")
+        input_ids = input_ids[:, -(inference_engine.max_length-inference_engine.max_new_tokens):]
+    
+    # Generate token IDs
+    generated_answer = inference_engine._generate_block_single_regular(input_ids)
+    
+    # Use tokenizer.batch_decode for decoding, consistent with LLaDA.py
+    cont_toks_list = inference_engine.tokenizer.batch_decode([generated_answer], skip_special_tokens=True)
+    s = cont_toks_list[0]  # Take the first (and only) result
+
+    print(f"Output: {s}")
+    exit()
+
+    """
     set_seed(1234)
     cli_evaluate()

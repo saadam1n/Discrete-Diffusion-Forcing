@@ -1,18 +1,18 @@
 #!/bin/bash
 
 
-tasks="gsm8k mbpp minerva_math"
-nshots="4 3 0"
-lengths="512 512 512"
-temperatures="0 0 0"
-limits="10000 10000 10000"
-block_sizes="64 32 32"
-block_add_thresholds="0.7 0.9 0.1"
-decoded_token_thresholds="0.95 0.95 0.95"
-skip_thresholds="0.9 0.9 0.9"
-top_ps="none none none"
-dtypes="bfloat16 bfloat16 bfloat16"
-sampling_strategies="default default default"
+tasks="gsm8k"
+nshots="4"
+lengths="512"
+temperatures="0"
+limits="10000"
+block_sizes="32"
+block_add_thresholds="0.7"
+decoded_token_thresholds="0.95"
+skip_thresholds="0.9"
+top_ps="none "
+dtypes="bfloat16"
+sampling_strategies="default"
 
 
 humaneval_nshots="0"
@@ -32,8 +32,8 @@ humaneval_sampling_strategies="default"
 base_model=GSAI-ML/LLaDA-8B-Instruct
 
 lora_models=(
-    #"SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora"
-    "../D2F-train/ckpt_llada_instruct_beta_sampling_1.2/llada_ddt_maskteacher/ddt_test/Decoder-llada_ddt_maskteacher-20k"
+    "SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora"
+    #"../D2F-train/ckpt_llada_instruct_beta_sampling_1.2/llada_ddt_maskteacher/ddt_test/Decoder-llada_ddt_maskteacher-20k"
 )
 
 read -ra TASKS_ARRAY <<< "$tasks"
@@ -103,29 +103,6 @@ for lora_model in "${lora_models[@]}"; do
     echo "Evaluating LoRA model: $lora_model_name"
     echo "===================================================================="
     
-    
-    
-    for i in "${!HUMANEVAL_NSHOTS_ARRAY[@]}"; do
-        output_path="eval_llada${lora_model_name}/humaneval-ns${HUMANEVAL_NSHOTS_ARRAY[$i]}-len${HUMANEVAL_LENGTHS_ARRAY[$i]}-temp${HUMANEVAL_TEMP_ARRAY[$i]}-limit${HUMANEVAL_LIMITS_ARRAY[$i]}-diffsteps${HUMANEVAL_DIFFUSION_STEPS_ARRAY[$i]}-block${HUMANEVAL_BLOCK_SIZES_ARRAY[$i]}-thresh${HUMANEVAL_BLOCK_ADD_THRESHOLDS_ARRAY[$i]}-decodethresh${HUMANEVAL_DECODED_TOKEN_THRESHOLDS_ARRAY[$i]}-skip${HUMANEVAL_SKIP_THRESHOLDS_ARRAY[$i]}-topp${HUMANEVAL_TOP_PS_ARRAY[$i]}-dtype${HUMANEVAL_DTYPES_ARRAY[$i]}-sampling${HUMANEVAL_SAMPLING_STRATEGIES_ARRAY[$i]}"
-        echo "Running HumanEval evaluation $((i+1))/${humaneval_array_length} for $lora_model_name..."
-        echo "HumanEval Config: Shots: ${HUMANEVAL_NSHOTS_ARRAY[$i]}, Length: ${HUMANEVAL_LENGTHS_ARRAY[$i]}, Temperature: ${HUMANEVAL_TEMP_ARRAY[$i]}, Limit: ${HUMANEVAL_LIMITS_ARRAY[$i]}, Diffusion Steps: ${HUMANEVAL_DIFFUSION_STEPS_ARRAY[$i]}, Block Size: ${HUMANEVAL_BLOCK_SIZES_ARRAY[$i]}, Block Add Threshold: ${HUMANEVAL_BLOCK_ADD_THRESHOLDS_ARRAY[$i]}, Decoded Token Threshold: ${HUMANEVAL_DECODED_TOKEN_THRESHOLDS_ARRAY[$i]}, Skip Threshold: ${HUMANEVAL_SKIP_THRESHOLDS_ARRAY[$i]}, Top_p: ${HUMANEVAL_TOP_PS_ARRAY[$i]}, Sampling Strategy: ${HUMANEVAL_SAMPLING_STRATEGIES_ARRAY[$i]}, Dtype: ${HUMANEVAL_DTYPES_ARRAY[$i]}; Output: $output_path"
-        
-        if [[ "${HUMANEVAL_TOP_PS_ARRAY[$i]}" == "none" ]]; then
-            humaneval_model_args="pretrained=${base_model},lora_path=${lora_model},max_new_tokens=${HUMANEVAL_LENGTHS_ARRAY[$i]},diffusion_steps=${HUMANEVAL_DIFFUSION_STEPS_ARRAY[$i]},temperature=${HUMANEVAL_TEMP_ARRAY[$i]},add_bos_token=true,escape_until=true,block_size=${HUMANEVAL_BLOCK_SIZES_ARRAY[$i]},block_add_threshold=${HUMANEVAL_BLOCK_ADD_THRESHOLDS_ARRAY[$i]},skip_threshold=${HUMANEVAL_SKIP_THRESHOLDS_ARRAY[$i]},decoded_token_threshold=${HUMANEVAL_DECODED_TOKEN_THRESHOLDS_ARRAY[$i]},dtype=${HUMANEVAL_DTYPES_ARRAY[$i]},sampling_strategy=${HUMANEVAL_SAMPLING_STRATEGIES_ARRAY[$i]},save_dir=${output_path}"
-        else
-            humaneval_model_args="pretrained=${base_model},lora_path=${lora_model},max_new_tokens=${HUMANEVAL_LENGTHS_ARRAY[$i]},diffusion_steps=${HUMANEVAL_DIFFUSION_STEPS_ARRAY[$i]},temperature=${HUMANEVAL_TEMP_ARRAY[$i]},top_p=${HUMANEVAL_TOP_PS_ARRAY[$i]},add_bos_token=true,escape_until=true,block_size=${HUMANEVAL_BLOCK_SIZES_ARRAY[$i]},block_add_threshold=${HUMANEVAL_BLOCK_ADD_THRESHOLDS_ARRAY[$i]},skip_threshold=${HUMANEVAL_SKIP_THRESHOLDS_ARRAY[$i]},decoded_token_threshold=${HUMANEVAL_DECODED_TOKEN_THRESHOLDS_ARRAY[$i]},dtype=${HUMANEVAL_DTYPES_ARRAY[$i]},sampling_strategy=${HUMANEVAL_SAMPLING_STRATEGIES_ARRAY[$i]},save_dir=${output_path}"
-        fi
-        
-        CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --main_process_port 29520 --num_processes 8 eval_llada.py --model dream_lora \
-            --model_args $humaneval_model_args \
-            --tasks humaneval \
-            --num_fewshot ${HUMANEVAL_NSHOTS_ARRAY[$i]} \
-            --batch_size 1 \
-            --output_path $output_path \
-            --log_samples \
-            --confirm_run_unsafe_code
-    done
-
     ### NOTICE: use postprocess for humaneval
     # python postprocess_code.py {the samples_xxx.jsonl file under output_path}
 

@@ -18,6 +18,8 @@ from tqdm import tqdm
 from accelerate import Accelerator
 from accelerate.utils import ProjectConfiguration
 
+import safetensors.torch
+
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 def get_accelerator(config, global_config):
@@ -37,6 +39,9 @@ def get_accelerator(config, global_config):
         project_config=project_config,
         gradient_accumulation_steps=config.gradient_accumulation_steps,
     )
+    #print(f"CREATING ACCELERATOR WITH GRAD ACCUM STEPS {config.gradient_accumulation_steps}")
+    #print(f"FULL CFG {config}")
+    #print(f"Full state:\n{accelerator.state}")
 
     return accelerator, output_dir
 
@@ -49,7 +54,9 @@ def main(args):
     dataloader = get_dataloader_by_config(tokenizer, config.data, config)
     
     if config.train.decoder_resume_path is not None:
-        ckpt = torch.load(config.train.decoder_resume_path, map_location='cpu', weights_only=True)
+        print("=" * 100)
+        print(f"LOADING FROM {config.train.decoder_resume_path}")
+        ckpt = safetensors.torch.load_file(config.train.decoder_resume_path, device="cpu")#torch.load(config.train.decoder_resume_path, map_location='cpu', weights_only=True)
         if config.train.skipped_keys:
             ckpt = {k: v for k, v in ckpt.items() if k not in config.train.skipped_keys}
         m, u = denoiser.load_state_dict(ckpt, strict=False)
@@ -62,6 +69,8 @@ def main(args):
         # m, u = denoiser.lm_head.load_state_dict(ckpt, strict=False)
         # if accelerator.is_main_process:
         #     print(f'model ckpt loaded from {config.train.head_resume_path}')
+
+    print(f"Model details:\n{denoiser}")
 
     global_step = config.train.global_step if config.train.global_step is not None else 0
     params_to_learn = list(param for param in denoiser.parameters() if param.requires_grad)
@@ -90,12 +99,18 @@ def main(args):
 
     if accelerator.is_main_process:
         print(f'Learnable parameters: {sum(p.numel() for p in params_to_learn if p.requires_grad) / 1e9} B')
+        print(f"Cfg {config}")
+        print(f"Accelerator info:\n{accelerator.state}")
+
+    exit()
 
     while not training_done:
         if accelerator.is_main_process:
             print(f'Epoch: {epoch}')
         for batch in dataloader:
             with accelerator.accumulate([denoiser]):
+                print(f"[Rank ({accelerator.process_index})] This process says hi {config.train.gradient_accumulation_steps}")
+
                 denoiser.train()
                 input_ids = batch['data']
                 # print("input_ids",input_ids.dtype)
@@ -114,29 +129,38 @@ def main(args):
                     feature_align = config.train.feature_align,
                     self_step     = config.train.self_step,
                     eos_id        = tokenizer.eos_token_id,
-                    config        = config
+                    config        = config,
+                    tokenizer     = tokenizer,
                 )
                 
                 if config.train.share_steps > 1:
                     loss_tgt = losses['loss']
-                    # loss_1 = losses['loss_1']
+                    # return none if not there
+                    loss_masked = losses['loss_masked']
+                    loss_unmasked = losses['loss_unmasked']
                     # loss_2 = losses['loss_2']
                 else:
                     raise NotImplementedError
                 torch.cuda.empty_cache()
-                accelerator.backward(loss_tgt)
+                accelerator.backward(loss_tgt / config.data.accumulation_steps)
                 if accelerator.sync_gradients:
                     accelerator.clip_grad_norm_(params_to_learn, 1.0)
 
-                optimizer.step()
-                optimizer.zero_grad()
+
+                if global_step % config.data.accumulation_steps == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
 
             if accelerator.sync_gradients:
                 global_step += 1
                 progress_bar.update(1)
                 logs = dict()
                 loss_tgt = accelerator.gather(loss_tgt.detach()).mean().item()
+                loss_tgt_masked = accelerator.gather(loss_masked.detach()).mean().item() if loss_masked is not None else 0.0
+                loss_tgt_unmasked = accelerator.gather(loss_unmasked.detach()).mean().item()  if loss_unmasked is not None else 0.0
                 logs['loss'] = loss_tgt
+                logs['loss_masked'] = loss_tgt_masked
+                logs['loss_unmasked'] = loss_tgt_unmasked
                 # if config.train.share_steps > 1:
                 #     loss_1 = accelerator.gather(loss_1.detach()).mean().item()
                 #     loss_2 = accelerator.gather(loss_2.detach()).mean().item()

@@ -94,10 +94,11 @@ def read_bs(config=None):
         dataset_path = config.paths.data.bs
     else:
         dataset_path = "/data1/xck/dllm_block_wx/data/Lansechen/bs17k_collection_filtered_hard_maxlength600"
-    
+
+    print(f"Loading dataset {dataset_path}")
     dataset=load_dataset(dataset_path, split="train")
     for item in dataset:
-        data.append({"question": item['question'], "answer": item['qwen7b_answer']})
+        data.append({"question": item['question'], "answer": item['qwen7b_answer'], "source": "bs_hard"})
     return data
 
 def read_bs_easy(config=None):
@@ -107,11 +108,29 @@ def read_bs_easy(config=None):
         dataset_path = config.paths.data.bs_easy
     else:
         dataset_path = "/data1/xck/dllm_block_wx/data/Lansechen/bs17k_collection_filtered_easy_maxlength600"
-    
+    print(f"Loading dataset {dataset_path}")
     dataset=load_dataset(dataset_path, split="train")
     for item in dataset:
-        data.append({"question": item['question'], "answer": item['qwen7b_answer']})
+        data.append({"question": item['question'], "answer": item['qwen7b_answer'], "source": "bs_easy"})
     return data
+
+
+def read_numina(config=None):
+    data=[]
+
+    dataset_path = config.paths.data.numina
+
+    print(f"Loading dataset {dataset_path}")
+    dataset=load_dataset(dataset_path, split="train")
+    for item in dataset:
+        # idk, these problems were hard when I was in high school
+        # high quality problems garaunteed (also makes the dataset way smaller)
+        if item['source'] != 'amc_aime':
+            continue
+
+        data.append({"question": item['problem'], "answer": item['solution'],  "source": "numina_amc_aime"})
+    return data
+
 
 def read_bs_17k():
     data=[]
@@ -241,9 +260,14 @@ def get_llada_bs17k_dataloader(tokenizer, config, max_length=1024):
     global_config = getattr(config, '_parent', config)  # Try to get parent config
     data_dict = read_bs(global_config)
     python_dict=read_bs_easy(global_config)
+
+    #numina_dict = read_numina(global_config)
+
     data_dict=data_dict+python_dict
     print("Data length:",len(data_dict))
     # data_dict = read_llada()
+    num_removed = 0
+    final_distribution = dict()
     for data in data_dict:
         question = data['question']
         answer = data['answer']
@@ -267,7 +291,11 @@ def get_llada_bs17k_dataloader(tokenizer, config, max_length=1024):
         combined_length = question_length + answer_length
 
         if combined_length > max_length:
+            num_removed += 1
             continue
+
+        prompt_source = data["source"]
+        final_distribution[prompt_source] = final_distribution.get(prompt_source, 0) + 1
 
         padding_length = max_length - combined_length
         padding = torch.full((padding_length,), tokenizer.eos_token_id, dtype=question.dtype)
@@ -280,6 +308,11 @@ def get_llada_bs17k_dataloader(tokenizer, config, max_length=1024):
                 length = combined_length,
             )
         )
+
+    print(f"Final dataset stats:")
+    print(f"\tTotal entries: {len(train_dataset)}")
+    print(f"\tNum filtered out: {num_removed}")
+    print(f"\tFinal distribution: {final_distribution}")
 
     dataset = CustomDataset(train_dataset)
     dataloader = DataLoader(
