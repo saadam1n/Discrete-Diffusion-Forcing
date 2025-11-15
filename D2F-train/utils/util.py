@@ -197,10 +197,10 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         # how many sections can we use?
         num_sections = int((SECTION_BUDGET * non_prompt_len) // section_token_cost)
 
-        print(f"Non prompt length is {non_prompt_len}. Integer component of budget is {int(SECTION_BUDGET * non_prompt_len)}. Since section cost is {section_token_cost}, we will use {num_sections}")
+        #print(f"Non prompt length is {non_prompt_len}. Integer component of budget is {int(SECTION_BUDGET * non_prompt_len)}. Since section cost is {section_token_cost}, we will use {num_sections}")
 
         if num_sections < 1:
-            print(f"Actually, I lied. We need to round up so we have to use at least one section")
+            #print(f"Actually, I lied. We need to round up so we have to use at least one section")
             num_sections = 1
 
 
@@ -228,15 +228,15 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
             total_num_sections = 1
 
         section_start_list =  [i for i in range(total_num_sections)]
-        print(f"We found {num_blocks} blocks. Global section num blocks is {global_section_num_blocks}, but we are using {section_num_blocks}. We can use {total_num_sections} in our sample. Budget however is {num_sections}")
-        print(f"Full list is {section_start_list}")
+        #print(f"We found {num_blocks} blocks. Global section num blocks is {global_section_num_blocks}, but we are using {section_num_blocks}. We can use {total_num_sections} in our sample. Budget however is {num_sections}")
+        #print(f"Full list is {section_start_list}")
         random.shuffle(section_start_list)
 
         section_start_list = section_start_list[:num_sections]
 
         # not needed but should make this easier to debug
         section_start_list.sort()
-        print(f"Using truncated list {section_start_list}")
+        #print(f"Using truncated list {section_start_list}")
 
         sample_raw_input_ids = input_ids[b]
 
@@ -253,8 +253,8 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
             start = prompt_len + start_block * block_size
             end = min(start + block_size * section_num_blocks, L)  
 
-            print(f"BLOCK IDX {start_block}\tBLOCK START AT {start}\tAKA RESPONSE POS {start - prompt_len}\tTOKEN VALUE {input_ids[b, start].item()}")
-            print(f"\tEND AT {end}")
+            #print(f"BLOCK IDX {start_block}\tBLOCK START AT {start}\tAKA RESPONSE POS {start - prompt_len}\tTOKEN VALUE {input_ids[b, start].item()}")
+            #print(f"\tEND AT {end}")
 
             translated_end = end - start
 
@@ -266,7 +266,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
                 sublock_start = block_idx * block_size
                 sublock_end = min(sublock_start + block_size, translated_end)
 
-                print(f"\tSUBLOCK {sublock_start} -> {sublock_end}")
+                #print(f"\tSUBLOCK {sublock_start} -> {sublock_end}")
 
                 sliced_block_tok_pos = block_tok_pos[:sublock_end - sublock_start]
 
@@ -339,7 +339,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
             first_block_idx = section_start_list[section_idx]
             first_block_start = prompt_len + first_block_idx * block_size
 
-            print(f"CREATING MASK FOR SECTION AT {section_idx}\t{first_block_idx}\t{first_block_start}\t{mask_start_pos}")
+            #print(f"CREATING MASK FOR SECTION AT {section_idx}\t{first_block_idx}\t{first_block_start}\t{mask_start_pos}")
 
             for sublock_idx in range(section_num_blocks):
                 # where does this block begin?
@@ -355,7 +355,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
                 start += mask_start_pos
                 end += mask_start_pos
 
-                print(f"\tPOS {sublock_idx}\t{start}\t{end}")
+                #print(f"\tPOS {sublock_idx}\t{start}\t{end}")
 
                 # two steps here:
                 # 1) set unmasked prompt and response to 0
@@ -367,7 +367,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         # unsqueeze for heads
         attn_mask = attn_mask.unsqueeze(0)
 
-        print(batch_p_mask)
+        #print(batch_p_mask)
         batch_input_ids.append(sample_input_ids)
         batch_noisy_batch.append(sample_noisy_batch)
         batch_p_mask.append(sample_p_mask)

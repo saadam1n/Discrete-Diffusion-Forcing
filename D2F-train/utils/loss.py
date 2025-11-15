@@ -1,5 +1,5 @@
 import torch
-from utils.util import forward_process_length, shift_logits,forward_process
+from utils.util import forward_process_length, shift_logits,forward_process, cave_in_generate
 import torch.nn.functional as F
 
 def compute_loss_by_config(
@@ -313,14 +313,16 @@ def compute_llada_loss(
     if use_randomized_masking:
         noisy_batch, masked_indices, p_mask = forward_process_length(input_ids, mask_id=mask_id,prompt_lengths=question_length, block_size=block_size,eos_id=eos_id)
         noisy_batch = noisy_batch.to(denoiser.device)
-        print("Building attention mask...")
+        #print("Building attention mask...")
         start_attn_mask = time.time()
         attention_mask=build_custom_float_attention_mask(noisy_batch, question_length, block_size, device=noisy_batch.device)
         attention_mask=attention_mask.to(torch.float16)
-        print(f"Done, attn mask took {time.time() - start_attn_mask}s to build")
+        #print(f"Done, attn mask took {time.time() - start_attn_mask}s to build")
         noisy_batch[prompt_mask] = input_ids[prompt_mask]
     else:
-        pass
+        noisy_batch, input_ids, p_mask, masked_indices, need_unmask, attention_mask = cave_in_generate(
+            input_ids=input_ids, mask_id=mask_id, block_size=block_size, prompt_lengths=prompt_length, eos_id=eos_id
+        )
 
 
     custom_rope_pos = torch.arange(L, device=denoiser.device, dtype=torch.float)
@@ -374,7 +376,7 @@ def compute_llada_loss(
                 mask_token_id=mask_id
             ).clone().detach()
         else:
-            pass
+            noisy_batch = torch.where(need_unmask, input_ids, noisy_batch)
 
         #import pdb;
         #pdb.set_trace()
