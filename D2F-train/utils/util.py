@@ -183,6 +183,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
 
     batch_input_ids = []
     batch_noisy_batch = []
+    batch_p_mask = []
     batch_mask_indices = []
     batch_need_unmask = []
     batch_attn_mask = []
@@ -195,7 +196,11 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
 
         # how many sections can we use?
         num_sections = int((SECTION_BUDGET * non_prompt_len) // section_token_cost)
+
+        print(f"Non prompt length is {non_prompt_len}. Integer component of budget is {int(SECTION_BUDGET * non_prompt_len)}. Since section cost is {section_token_cost}, we will use {num_sections}")
+
         if num_sections < 1:
+            print(f"Actually, I lied. We need to round up so we have to use at least one section")
             num_sections = 1
 
 
@@ -222,18 +227,22 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         if total_num_sections < 1:
             total_num_sections = 1
 
-        if total_num_sections > num_sections:
-            total_num_sections = num_sections
-
         section_start_list =  [i for i in range(total_num_sections)]
+        print(f"We found {num_blocks} blocks. Global section num blocks is {global_section_num_blocks}, but we are using {section_num_blocks}. We can use {total_num_sections} in our sample. Budget however is {num_sections}")
+        print(f"Full list is {section_start_list}")
         random.shuffle(section_start_list)
 
         section_start_list = section_start_list[:num_sections]
+
+        # not needed but should make this easier to debug
+        section_start_list.sort()
+        print(f"Using truncated list {section_start_list}")
 
         sample_raw_input_ids = input_ids[b]
 
         sample_input_ids = [sample_raw_input_ids]
         sample_noisy_batch = [sample_raw_input_ids]
+        sample_p_mask = [torch.zeros_like(sample_raw_input_ids)]
         sample_mask_indices = [torch.zeros_like(sample_raw_input_ids)]
         sample_need_unmask = [torch.zeros_like(sample_raw_input_ids)]
 
@@ -243,6 +252,9 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         for start_block in section_start_list:
             start = prompt_len + start_block * block_size
             end = min(start + block_size * section_num_blocks, L)  
+
+            print(f"BLOCK IDX {start_block}\tBLOCK START AT {start}\tAKA RESPONSE POS {start - prompt_len}\tTOKEN VALUE {input_ids[b, start].item()}")
+            print(f"\tEND AT {end}")
 
             translated_end = end - start
 
@@ -254,10 +266,19 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
                 sublock_start = block_idx * block_size
                 sublock_end = min(sublock_start + block_size, translated_end)
 
+                print(f"\tSUBLOCK {sublock_start} -> {sublock_end}")
+
                 sliced_block_tok_pos = block_tok_pos[:sublock_end - sublock_start]
 
                 cave_in_divisor = 1 << (block_idx + 1)
                 next_cave_in_divisor = 1 << block_idx
+
+
+                # only executes for the last block
+                # for the last block we want everything unmasked 
+                if cave_in_divisor > block_size:
+                    sliced_block_tok_pos = sliced_block_tok_pos + 1
+
 
                 # save this somewhere (used for loss calculations)
                 remask = (sliced_block_tok_pos % cave_in_divisor != 0)
@@ -273,6 +294,11 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
 
                 sublock_noisy_batch[remask] = mask_id
 
+                percentage_masked = torch.atleast_1d(remask.sum() / remask.numel())
+                percentage_masked = percentage_masked.expand_as(remask)
+                #print(f"{block_size} {cave_in_divisor} {next_cave_in_divisor} REMASK SIZE {remask.shape} {remask} PERCENRAGE MASK SIZE {percentage_masked.shape}")
+
+                sample_p_mask.append(percentage_masked)
                 sample_mask_indices.append(remask)
                 sample_need_unmask.append(need_unmask)
 
@@ -286,6 +312,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         # now create a list of everything
         sample_input_ids = torch.cat(sample_input_ids, dim=0)
         sample_noisy_batch = torch.cat(sample_noisy_batch, dim=0)
+        sample_p_mask = torch.cat(sample_p_mask, dim=0)
         sample_mask_indices = torch.cat(sample_mask_indices, dim=0)
         sample_need_unmask = torch.cat(sample_need_unmask, dim=0)
 
@@ -310,7 +337,9 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
             mask_start_pos = section_global_start_positions[section_idx]
 
             first_block_idx = section_start_list[section_idx]
-            first_block_start = prompt_len + first_block_idx * block_idx
+            first_block_start = prompt_len + first_block_idx * block_size
+
+            print(f"CREATING MASK FOR SECTION AT {section_idx}\t{first_block_idx}\t{first_block_start}\t{mask_start_pos}")
 
             for sublock_idx in range(section_num_blocks):
                 # where does this block begin?
@@ -326,7 +355,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
                 start += mask_start_pos
                 end += mask_start_pos
 
-                print(f"POS {start} {end}")
+                print(f"\tPOS {sublock_idx}\t{start}\t{end}")
 
                 # two steps here:
                 # 1) set unmasked prompt and response to 0
@@ -338,19 +367,22 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         # unsqueeze for heads
         attn_mask = attn_mask.unsqueeze(0)
 
+        print(batch_p_mask)
         batch_input_ids.append(sample_input_ids)
         batch_noisy_batch.append(sample_noisy_batch)
+        batch_p_mask.append(sample_p_mask)
         batch_mask_indices.append(sample_mask_indices)
         batch_need_unmask.append(sample_need_unmask)
         batch_attn_mask.append(attn_mask)
 
     batch_input_ids = torch.stack(batch_input_ids)
     batch_noisy_batch = torch.stack(batch_noisy_batch)
-    batch_mask_indices = torch.stack(batch_mask_indices)
-    batch_need_unmask = torch.stack(batch_need_unmask)
+    batch_p_mask = torch.stack(batch_p_mask)
+    batch_mask_indices = torch.stack(batch_mask_indices).bool()
+    batch_need_unmask = torch.stack(batch_need_unmask).bool()
     batch_attn_mask = torch.stack(batch_attn_mask)
 
-    return batch_input_ids, batch_noisy_batch, batch_mask_indices, batch_need_unmask, batch_attn_mask
+    return batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_attn_mask
 
 if __name__ == '__main__':
     """
@@ -364,14 +396,25 @@ if __name__ == '__main__':
     print("p_mask:", p_mask)
     """
 
-    input_ids= torch.tensor([[1, 2, 3, 4, 5, 6, 7, 8, -1, -1, -1, -1]])
-    mask_id=0
+    """
+    mask_id = 0
+    eos_id = -1
+
+    normal_ctx_len = 128
+    prompt_length = 14
+    eos_len = 26
+
+    input_ids = [i + 1 for i in range(prompt_length)] + [i + 1 for i in range(normal_ctx_len - prompt_length - eos_len)] + [-1 for _ in range(eos_len)]
+
+    input_ids= torch.tensor([input_ids]) #[1, 2, 3, 4, 5, 6, 7, 8, -1, -1, -1, -1]
     block_size=4
-    prompt_length=torch.tensor([4])
+    prompt_length=torch.tensor([prompt_length])
+
+    print(input_ids)
 
     print(f"Length of L: {input_ids.shape}")
     batch_input_ids, batch_noisy_batch, batch_mask_indices, batch_need_unmask, batch_attn_mask = cave_in_generate(
-        input_ids, mask_id, block_size, prompt_length, -1
+        input_ids, mask_id, block_size, prompt_length, eos_id
     )
 
     print(batch_input_ids)
@@ -379,3 +422,257 @@ if __name__ == '__main__':
     print(batch_mask_indices)
     print(batch_need_unmask)
     print(batch_attn_mask)
+
+    # attention mask viz
+    # code shamelessly copied from claude
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    # Visualization
+    # Convert attention mask to numpy for visualization
+    attn_mask_np = batch_attn_mask.squeeze().cpu().numpy()
+
+    # Create a binary mask for visualization (0 for valid positions, 1 for masked)
+    # Since the mask has 0 and -inf, we'll map: 0 -> white (valid), -inf -> black (masked)
+    vis_mask = np.where(np.isneginf(attn_mask_np), 1, 0)
+
+    # Create figure with larger size for better visibility
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+
+    # Plot 1: Raw values (showing -inf as a different color)
+    im1 = ax1.imshow(attn_mask_np, cmap='RdYlGn_r', aspect='auto', interpolation='nearest')
+    ax1.set_title('Attention Mask (Raw Values)\n0 = Valid, -inf = Masked', fontsize=14, fontweight='bold')
+    ax1.set_xlabel('Key Position', fontsize=12)
+    ax1.set_ylabel('Query Position', fontsize=12)
+    plt.colorbar(im1, ax=ax1, label='Mask Value')
+
+    # Plot 2: Binary visualization (clearer view)
+    im2 = ax2.imshow(vis_mask, cmap='binary', aspect='auto', interpolation='nearest')
+    ax2.set_title('Attention Mask (Binary View)\nWhite = Valid (0), Black = Masked (-inf)', fontsize=14, fontweight='bold')
+    ax2.set_xlabel('Key Position', fontsize=12)
+    ax2.set_ylabel('Query Position', fontsize=12)
+    plt.colorbar(im2, ax=ax2, label='0=Valid, 1=Masked', ticks=[0, 1])
+
+    # Add grid for better readability
+    for ax in [ax1, ax2]:
+        ax.grid(True, which='both', color='gray', linewidth=0.5, alpha=0.3)
+        ax.set_xticks(range(0, attn_mask_np.shape[1], max(1, attn_mask_np.shape[1]//10)))
+        ax.set_yticks(range(0, attn_mask_np.shape[0], max(1, attn_mask_np.shape[0]//10)))
+
+    plt.tight_layout()
+    plt.savefig('attention_mask.png', dpi=300, bbox_inches='tight')
+    print("\nAttention mask visualization saved as 'attention_mask.png'")
+    plt.show()
+
+    # Optional: Create a zoomed-in view of a portion if the mask is large
+    if attn_mask_np.shape[0] > 50:
+        fig, ax = plt.subplots(figsize=(10, 10))
+        zoom_size = min(50, attn_mask_np.shape[0])
+        im = ax.imshow(vis_mask[:zoom_size, :zoom_size], cmap='binary', aspect='auto', interpolation='nearest')
+        ax.set_title(f'Attention Mask (First {zoom_size}x{zoom_size} positions)\nWhite = Valid, Black = Masked', 
+                    fontsize=12, fontweight='bold')
+        ax.set_xlabel('Key Position', fontsize=10)
+        ax.set_ylabel('Query Position', fontsize=10)
+        plt.colorbar(im, ax=ax, label='0=Valid, 1=Masked', ticks=[0, 1])
+        ax.grid(True, which='both', color='gray', linewidth=0.5, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig('attention_mask_zoomed.png', dpi=300, bbox_inches='tight')
+        print(f"Zoomed view saved as 'attention_mask_zoomed.png'")
+        plt.show()
+    """
+
+    import torch
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from transformers import AutoTokenizer
+
+    # Load your tokenizer
+    model_path = "GSAI-ML/LLaDA-8B-Instruct"  # Replace with your actual model path
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+
+    # Sample conversation
+    prompt = "What is the capital of France?"
+    response = "The capital of France is Paris, a beautiful city known for its iconic Eiffel Tower, art museums, and rich history."
+
+    # Create a chat-formatted prompt (adjust format based on your model's chat template)
+    if hasattr(tokenizer, 'apply_chat_template'):
+        # Use the model's chat template if available
+        messages = [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": response}
+        ]
+        full_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+    else:
+        # Fallback to simple concatenation
+        full_text = f"User: {prompt}\nAssistant: {response}"
+
+    print("="*80)
+    print("FULL TEXT:")
+    print("="*80)
+    print(full_text)
+    print("="*80)
+
+    # Tokenize
+    tokens = tokenizer.encode(full_text, add_special_tokens=True)
+    input_ids = torch.tensor([tokens])
+
+    print(f"\nTokenized sequence length: {len(tokens)}")
+    print(f"First 20 tokens: {tokens[:20]}")
+    print(f"Decoded first 20 tokens: {tokenizer.decode(tokens[:20])}")
+
+    # Calculate prompt length (tokens up to the assistant's response)
+    prompt_only = tokenizer.encode(
+        tokenizer.apply_chat_template([{"role": "user", "content": prompt}], 
+                                    tokenize=False, 
+                                    add_generation_prompt=True) 
+        if hasattr(tokenizer, 'apply_chat_template') 
+        else f"User: {prompt}\nAssistant:",
+        add_special_tokens=True
+    )
+    prompt_length = len(prompt_only)
+
+    print(f"\nPrompt length (tokens): {prompt_length}")
+    print(f"Response length (tokens): {len(tokens) - prompt_length}")
+
+    # cave_in_generate parameters
+    mask_id = tokenizer.mask_token_id if hasattr(tokenizer, 'mask_token_id') and tokenizer.mask_token_id is not None else 0
+
+    mask_id=126336
+
+    eos_id = tokenizer.eos_token_id if tokenizer.eos_token_id is not None else -1
+    block_size = 4
+    prompt_length_tensor = torch.tensor([prompt_length])
+
+    print(f"\nMask token ID: {mask_id}")
+    print(f"EOS token ID: {eos_id}")
+    print(f"Block size: {block_size}")
+
+    # Run cave_in_generate
+    print("\n" + "="*80)
+    print("RUNNING cave_in_generate")
+    print("="*80)
+
+    batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_attn_mask = cave_in_generate(
+        input_ids, mask_id, block_size, prompt_length_tensor, eos_id
+    )
+
+    print(f"\nInput IDs shape: {batch_input_ids.shape}")
+    print(f"Noisy batch shape: {batch_noisy_batch.shape}")
+    print(f"Percentage shape: {batch_noisy_batch.shape}")
+    print(f"Mask indices shape: {batch_mask_indices.shape}")
+    print(f"Need unmask shape: {batch_need_unmask.shape}")
+    print(f"Attention mask shape: {batch_attn_mask.shape}")
+
+    print(f"\nNoisy batch (first 30 tokens): {batch_noisy_batch[0, :30].tolist()}")
+    print(f"Mask indices (first 30): {batch_mask_indices[0, :30].tolist()}")
+    print(f"Need unmask (first 30): {batch_need_unmask[0, :30].tolist()}")
+
+    # Full text
+    noisy_decoded = tokenizer.decode(batch_input_ids[0], skip_special_tokens=False)
+    print("\n" + "="*80)
+    print("FULL TEXT:")
+    print("="*80)
+    print(noisy_decoded)
+    print("="*80)
+
+    # Decode the noisy batch to see what it looks like
+    noisy_decoded = tokenizer.decode(batch_noisy_batch[0], skip_special_tokens=False)
+    print("\n" + "="*80)
+    print("NOISY BATCH (with masks):")
+    print("="*80)
+    print(noisy_decoded)
+    print("="*80)
+
+    # Try one step of the algorithm to see what happens
+    batch_noisy_batch_stepped = torch.where(batch_need_unmask.bool(), batch_input_ids, batch_noisy_batch)
+    noisy_decoded = tokenizer.decode(batch_noisy_batch_stepped[0], skip_special_tokens=False)
+    print("\n" + "="*80)
+    print("NOISY BATCH AFTER PARTIAL DECODE (with masks):")
+    print("="*80)
+    print(noisy_decoded)
+    print("="*80)
+
+    print(f"PERCENTAGE MASKED:\n{batch_p_mask[0]}")
+
+    # Visualization
+    attn_mask_np = batch_attn_mask.squeeze().cpu().numpy()
+    vis_mask = np.where(np.isneginf(attn_mask_np), 1, 0)
+
+    # Create comprehensive visualization
+    fig = plt.figure(figsize=(20, 12))
+    gs = fig.add_gridspec(3, 2, hspace=0.3, wspace=0.3)
+
+    # Plot 1: Full attention mask (binary)
+    ax1 = fig.add_subplot(gs[0, :])
+    im1 = ax1.imshow(vis_mask, cmap='binary', aspect='auto', interpolation='nearest')
+    ax1.set_title(f'Full Attention Mask ({vis_mask.shape[0]}x{vis_mask.shape[1]})\nWhite = Valid, Black = Masked', 
+                fontsize=14, fontweight='bold')
+    ax1.set_xlabel('Key Position (Token Index)', fontsize=11)
+    ax1.set_ylabel('Query Position (Token Index)', fontsize=11)
+    ax1.axvline(x=prompt_length-0.5, color='red', linestyle='--', linewidth=2, label='Prompt End')
+    ax1.axhline(y=prompt_length-0.5, color='red', linestyle='--', linewidth=2)
+    ax1.legend(loc='upper right')
+    plt.colorbar(im1, ax=ax1, label='0=Valid, 1=Masked', ticks=[0, 1])
+
+    # Plot 2: Zoomed view of prompt region
+    zoom_size = min(50, vis_mask.shape[0])
+    ax2 = fig.add_subplot(gs[1, 0])
+    im2 = ax2.imshow(vis_mask[:zoom_size, :zoom_size], cmap='binary', aspect='auto', interpolation='nearest')
+    ax2.set_title(f'Zoomed: First {zoom_size}x{zoom_size} Tokens', fontsize=12, fontweight='bold')
+    ax2.set_xlabel('Key Position', fontsize=10)
+    ax2.set_ylabel('Query Position', fontsize=10)
+    if prompt_length < zoom_size:
+        ax2.axvline(x=prompt_length-0.5, color='red', linestyle='--', linewidth=2, label='Prompt End')
+        ax2.axhline(y=prompt_length-0.5, color='red', linestyle='--', linewidth=2)
+        ax2.legend(loc='upper right', fontsize=8)
+    plt.colorbar(im2, ax=ax2, label='0=Valid, 1=Masked', ticks=[0, 1])
+
+    # Plot 3: Mask pattern analysis
+    ax3 = fig.add_subplot(gs[1, 1])
+    mask_counts = vis_mask.sum(axis=1)  # Count masked positions per query
+    ax3.plot(mask_counts, linewidth=2)
+    ax3.set_title('Masked Positions per Query Token', fontsize=12, fontweight='bold')
+    ax3.set_xlabel('Query Position (Token Index)', fontsize=10)
+    ax3.set_ylabel('Number of Masked Key Positions', fontsize=10)
+    ax3.axvline(x=prompt_length, color='red', linestyle='--', linewidth=2, label='Prompt End')
+    ax3.legend()
+    ax3.grid(True, alpha=0.3)
+
+    # Plot 4: Token information
+    ax4 = fig.add_subplot(gs[2, :])
+    ax4.axis('off')
+
+    info_text = f"""
+    TOKEN INFORMATION:
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Total Tokens: {len(tokens)}
+    Prompt Tokens: {prompt_length}
+    Response Tokens: {len(tokens) - prompt_length}
+
+    Mask Token ID: {mask_id}
+    EOS Token ID: {eos_id}
+    Block Size: {block_size}
+
+    Masked Tokens in Noisy Batch: {(batch_noisy_batch == mask_id).sum().item()}
+    Tokens Needing Unmask: {batch_need_unmask.sum().item()}
+
+    PROMPT: {prompt[:80]}{'...' if len(prompt) > 80 else ''}
+    RESPONSE: {response[:80]}{'...' if len(response) > 80 else ''}
+    """
+
+    ax4.text(0.05, 0.5, info_text, fontsize=10, verticalalignment='center', 
+            fontfamily='monospace', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+    plt.savefig('attention_mask_analysis.png', dpi=300, bbox_inches='tight')
+    print("\n✓ Visualization saved as 'attention_mask_analysis.png'")
+    plt.show()
+
+    # Additional analysis
+    print("\n" + "="*80)
+    print("ANALYSIS")
+    print("="*80)
+    print(f"Attention mask sparsity: {(vis_mask.sum() / vis_mask.size * 100):.2f}% masked")
+    print(f"Average masked positions per query: {vis_mask.sum(axis=1).mean():.2f}")
+    print(f"Max masked positions for any query: {vis_mask.sum(axis=1).max()}")
+    print(f"Min masked positions for any query: {vis_mask.sum(axis=1).min()}")
