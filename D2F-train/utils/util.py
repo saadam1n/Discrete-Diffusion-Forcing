@@ -186,6 +186,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
     batch_p_mask = []
     batch_mask_indices = []
     batch_need_unmask = []
+    batch_token_pos = []
     batch_attn_mask = []
 
     for b in range(B):
@@ -245,6 +246,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         sample_p_mask = [torch.zeros_like(sample_raw_input_ids)]
         sample_mask_indices = [torch.zeros_like(sample_raw_input_ids)]
         sample_need_unmask = [torch.zeros_like(sample_raw_input_ids)]
+        sample_token_pos = [torch.arange(input_ids[b].shape[-1], device=input_ids.device)]
 
         global_start_pos = L
         section_global_start_positions = []
@@ -255,6 +257,8 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
 
             #print(f"BLOCK IDX {start_block}\tBLOCK START AT {start}\tAKA RESPONSE POS {start - prompt_len}\tTOKEN VALUE {input_ids[b, start].item()}")
             #print(f"\tEND AT {end}")
+
+            sample_token_pos.append(torch.arange(start, end, device=input_ids.device))
 
             translated_end = end - start
 
@@ -315,6 +319,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         sample_p_mask = torch.cat(sample_p_mask, dim=0)
         sample_mask_indices = torch.cat(sample_mask_indices, dim=0)
         sample_need_unmask = torch.cat(sample_need_unmask, dim=0)
+        sample_token_pos = torch.cat(sample_token_pos, dim=0)
 
         L_P = sample_input_ids.shape[-1]
 
@@ -373,6 +378,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         batch_p_mask.append(sample_p_mask)
         batch_mask_indices.append(sample_mask_indices)
         batch_need_unmask.append(sample_need_unmask)
+        batch_token_pos.append(sample_token_pos)
         batch_attn_mask.append(attn_mask)
 
     batch_input_ids = torch.stack(batch_input_ids)
@@ -380,9 +386,10 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
     batch_p_mask = torch.stack(batch_p_mask)
     batch_mask_indices = torch.stack(batch_mask_indices).bool()
     batch_need_unmask = torch.stack(batch_need_unmask).bool()
+    batch_token_pos = torch.stack(batch_token_pos)
     batch_attn_mask = torch.stack(batch_attn_mask)
 
-    return batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_attn_mask
+    return batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_token_pos, batch_attn_mask
 
 if __name__ == '__main__':
     """
@@ -552,7 +559,7 @@ if __name__ == '__main__':
     print("RUNNING cave_in_generate")
     print("="*80)
 
-    batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_attn_mask = cave_in_generate(
+    batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_token_pos, batch_attn_mask = cave_in_generate(
         input_ids, mask_id, block_size, prompt_length_tensor, eos_id
     )
 
@@ -566,6 +573,9 @@ if __name__ == '__main__':
     print(f"\nNoisy batch (first 30 tokens): {batch_noisy_batch[0, :30].tolist()}")
     print(f"Mask indices (first 30): {batch_mask_indices[0, :30].tolist()}")
     print(f"Need unmask (first 30): {batch_need_unmask[0, :30].tolist()}")
+
+    print(f"Original token IDs: {batch_input_ids[0]}")
+    print(f"Gathered token IDs: {torch.gather(batch_input_ids, -1, batch_token_pos)}")
 
     # Full text
     noisy_decoded = tokenizer.decode(batch_input_ids[0], skip_special_tokens=False)

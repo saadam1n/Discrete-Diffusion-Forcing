@@ -303,14 +303,16 @@ def compute_llada_loss(
     # I wonder how people train models with 1 million context length
     #input_ids = torch.ones(1, 32768, dtype=input_ids.dtype, device=input_ids.device)
 
-    B, L = input_ids.shape
 
-    token_positions = torch.arange(L, device=input_ids.device).expand(B, L)
-    prompt_mask = (token_positions < question_length.unsqueeze(1))
 
-    use_randomized_masking = (random.random() < 10.1)
+    use_randomized_masking = (random.random() < 0.1)
 
     if use_randomized_masking:
+        B, L = input_ids.shape
+
+        token_positions = torch.arange(L, device=input_ids.device).expand(B, L)
+        prompt_mask = (token_positions < question_length.unsqueeze(1))
+
         noisy_batch, masked_indices, p_mask = forward_process_length(input_ids, mask_id=mask_id,prompt_lengths=question_length, block_size=block_size,eos_id=eos_id)
         noisy_batch = noisy_batch.to(denoiser.device)
         #print("Building attention mask...")
@@ -319,13 +321,26 @@ def compute_llada_loss(
         attention_mask=attention_mask.to(torch.float16)
         #print(f"Done, attn mask took {time.time() - start_attn_mask}s to build")
         noisy_batch[prompt_mask] = input_ids[prompt_mask]
+        # use default implementation
+        custom_rope_pos = None
     else:
-        noisy_batch, input_ids, p_mask, masked_indices, need_unmask, attention_mask = cave_in_generate(
-            input_ids=input_ids, mask_id=mask_id, block_size=block_size, prompt_lengths=prompt_length, eos_id=eos_id
+        #print("Building attention mask...")
+        #start_attn_mask = time.time()
+
+        noisy_batch, input_ids, p_mask, masked_indices, need_unmask, custom_rope_pos, attention_mask = cave_in_generate(
+            input_ids=input_ids, mask_id=mask_id, block_size=block_size, prompt_lengths=question_length, eos_id=eos_id
         )
+        #print(f"Done, attn mask took {time.time() - start_attn_mask}s to build")
 
+        assert custom_rope_pos.shape[0] == 1, "I am too lazy to get RoPE to work with batch size > 1. I doubt any of this code will work with batch size > 1"
 
-    custom_rope_pos = torch.arange(L, device=denoiser.device, dtype=torch.float)
+        custom_rope_pos = custom_rope_pos[0]
+        B, L = input_ids.shape
+
+        token_positions = torch.arange(L, device=input_ids.device).expand(B, L)
+        prompt_mask = (token_positions < question_length.unsqueeze(1))
+
+    #custom_rope_pos = torch.arange(L, device=denoiser.device, dtype=torch.float)
     #print("NEW INFERENCE STEP -- START")
 
     logits=denoiser(noisy_batch,attention_bias=attention_mask, custom_rope_pos=custom_rope_pos).logits

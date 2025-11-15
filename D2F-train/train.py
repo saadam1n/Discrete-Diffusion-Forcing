@@ -109,7 +109,7 @@ def main(args):
             print(f'Epoch: {epoch}')
         for batch in dataloader:
             with accelerator.accumulate([denoiser]):
-                print(f"[Rank ({accelerator.process_index})] This process says hi {config.train.gradient_accumulation_steps}")
+                #print(f"[Rank ({accelerator.process_index})] This process says hi {config.train.gradient_accumulation_steps}")
 
                 denoiser.train()
                 input_ids = batch['data']
