@@ -261,9 +261,10 @@ def get_llada_bs17k_dataloader(tokenizer, config, max_length=1024):
     data_dict = read_bs(global_config)
     python_dict=read_bs_easy(global_config)
 
-    #numina_dict = read_numina(global_config)
+    print(f"LOADING NUMINA...")
+    numina_dict = read_numina(global_config)
 
-    data_dict=data_dict+python_dict
+    data_dict=data_dict+python_dict+numina_dict
     print("Data length:",len(data_dict))
     # data_dict = read_llada()
     num_removed = 0

@@ -1,5 +1,5 @@
 import torch
-from utils.util import forward_process_length, shift_logits,forward_process, cave_in_generate
+from utils.util import forward_process_length, shift_logits,forward_process, cave_in_generate, visualize_attention_mask
 import torch.nn.functional as F
 
 def compute_loss_by_config(
@@ -174,7 +174,7 @@ def ntis_rl_sample_gt(logits, noisy_batch=None, input_ids=None, prompt_mask=None
 
     return next_noisy_batch
 
-def ntis_rl_sample_qxi(logits, noisy_batch=None, input_ids=None, prompt_mask=None, mask_token_id=None, beta=1.2):
+def ntis_rl_sample_qxi(logits, noisy_batch=None, input_ids=None, prompt_mask=None, mask_token_id=None, beta=1.2, k=8, need_unmask=None):
     """
     returns rl_noisy_batch for a second round of training
     """
@@ -184,21 +184,44 @@ def ntis_rl_sample_qxi(logits, noisy_batch=None, input_ids=None, prompt_mask=Non
     if temprature > 0.0:
         logits = logits / temprature
 
-    # B, L, V (where V is output vocab size)
-    probs = F.softmax(logits, dim=-1)
+    if False:
+        # B, L, V (where V is output vocab size)
+        probs = F.softmax(logits, dim=-1)
 
-    # B, L
-    gt_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(input_ids, -1)), -1) * beta
+        # QXI/beta sampling
+        # aka garbage shit I wrote
+        # I mean it works in theory but I would rather use top-k sampling since that is tried and tested 
+        # B, L
+        gt_p = torch.squeeze(torch.gather(probs, dim=-1, index=torch.unsqueeze(input_ids, -1)), -1) * beta
 
-    keep_gt = torch.rand_like(gt_p) < gt_p
-    
-    removed_gt_logits = logits.scatter(-1, input_ids.unsqueeze(-1), float('-inf'))
-    dist = torch.distributions.Categorical(logits=removed_gt_logits)
+        keep_gt = torch.rand_like(gt_p) < gt_p
 
-    # if gt above a certain confidence, select that
-    # else, select top1
-    # B, L
-    next_noisy_batch = torch.where(keep_gt, input_ids, dist.sample())
+        removed_gt_logits = logits.scatter(-1, input_ids.unsqueeze(-1), float('-inf'))
+        dist = torch.distributions.Categorical(logits=removed_gt_logits)
+
+        # if gt above a certain confidence, select that
+        # else, select top1
+        # B, L
+        next_noisy_batch = torch.where(keep_gt, input_ids, dist.sample())
+    else:
+        top_k_logits, top_k_indices = torch.topk(logits, k=min(k, logits.size(-1)), dim=-1)
+
+        # Create a tensor of -inf with same shape as logits
+        filtered_logits = torch.full_like(logits, float('-inf'))
+
+        # Scatter the top-k logits back
+        filtered_logits.scatter_(-1, top_k_indices, top_k_logits)
+
+        # Sample from the filtered distribution
+        dist = torch.distributions.Categorical(logits=filtered_logits)
+
+        next_noisy_batch = dist.sample()
+
+
+    if need_unmask is not None:
+        # we are using cave in sampling
+        # in this case, we only use the sampled positions for where we need to unmask
+        next_noisy_batch = torch.where(need_unmask, next_noisy_batch, noisy_batch)
 
     # protect prompt
     # B, L
@@ -323,11 +346,12 @@ def compute_llada_loss(
         noisy_batch[prompt_mask] = input_ids[prompt_mask]
         # use default implementation
         custom_rope_pos = None
+        need_unmask = None
     else:
         #print("Building attention mask...")
         #start_attn_mask = time.time()
 
-        noisy_batch, input_ids, p_mask, masked_indices, need_unmask, custom_rope_pos, attention_mask = cave_in_generate(
+        input_ids, noisy_batch, p_mask, masked_indices, need_unmask, custom_rope_pos, attention_mask = cave_in_generate(
             input_ids=input_ids, mask_id=mask_id, block_size=block_size, prompt_lengths=question_length, eos_id=eos_id
         )
         #print(f"Done, attn mask took {time.time() - start_attn_mask}s to build")
@@ -339,6 +363,9 @@ def compute_llada_loss(
 
         token_positions = torch.arange(L, device=input_ids.device).expand(B, L)
         prompt_mask = (token_positions < question_length.unsqueeze(1))
+
+        #visualize_attention_mask(attention_mask)
+        #exit()
 
     #custom_rope_pos = torch.arange(L, device=denoiser.device, dtype=torch.float)
     #print("NEW INFERENCE STEP -- START")
@@ -377,21 +404,22 @@ def compute_llada_loss(
 
     all_logits = [logits]
 
+    all_noisy_batch = [noisy_batch]
+
     num_rl_iterations = 1
     for _ in range(num_rl_iterations):
         old_noisy_batch = noisy_batch
 
         # detach shouldn't matter here but idrc
-        if use_randomized_masking:
-            noisy_batch = ntis_rl_sample_qxi(
-                logits=logits, 
-                noisy_batch=noisy_batch, 
-                input_ids=input_ids,
-                prompt_mask=prompt_mask,
-                mask_token_id=mask_id
-            ).clone().detach()
-        else:
-            noisy_batch = torch.where(need_unmask, input_ids, noisy_batch)
+
+        noisy_batch = ntis_rl_sample_qxi(
+            logits=logits, 
+            noisy_batch=noisy_batch, 
+            input_ids=input_ids,
+            prompt_mask=prompt_mask,
+            mask_token_id=mask_id,
+            need_unmask=need_unmask
+        ).clone().detach()
 
         #import pdb;
         #pdb.set_trace()
@@ -399,9 +427,10 @@ def compute_llada_loss(
         logits = denoiser(noisy_batch, attention_bias=attention_mask, custom_rope_pos=custom_rope_pos).logits
         all_logits.append(logits)
 
-
+        all_noisy_batch.append(noisy_batch)
 
     all_logits = torch.cat(all_logits, dim=0).flatten(0, 1)
+    all_noisy_batch = torch.cat(all_noisy_batch, dim=0).flatten(0, 1)
     all_input_ids = input_ids.repeat(num_rl_iterations + 1, 1)
 
     assert B == 1
@@ -428,6 +457,25 @@ def compute_llada_loss(
 
     token_loss_masked = F.cross_entropy(all_logits[masked_mask], all_input_ids[masked_mask], reduction='none') / all_p_mask[masked_mask]
     token_loss_masked = token_loss_masked.mean()
+
+
+
+    if False and not use_randomized_masking:
+        unmasked_divisor = all_p_mask[unmasked_mask]
+
+        #print(f"Uh oh! {all_input_ids.shape} {all_input_ids[masked_mask].shape} {all_input_ids[unmasked_mask].shape}")
+        torch.set_printoptions(threshold=float('inf'))
+        #print(f"ORIG {all_input_ids}")
+        #print(f"MASK {all_input_ids[masked_mask]}")
+        #print(f"UMSK {all_input_ids[unmasked_mask]}")
+        
+        msk_info = all_input_ids[masked_mask] 
+
+        msk_cnt = (msk_info == 126081).sum() / msk_info.numel()
+
+        msk_eq = (msk_info == all_noisy_batch[masked_mask]).sum() / msk_info.numel()
+
+        #print(f"Hey look at me {126081} {eos_id} {msk_cnt.item():.2%} {msk_eq.item():.2%}")
 
     token_loss_unmasked = F.cross_entropy(all_logits[unmasked_mask], all_input_ids[unmasked_mask], reduction='none') / all_p_mask[unmasked_mask]
     token_loss_unmasked = token_loss_unmasked.mean()

@@ -762,7 +762,7 @@ if __name__ == "__main__":
     config = {
         "pretrained_path": "GSAI-ML/LLaDA-8B-Instruct",
         #"lora_path": "SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora",
-        "lora_path": "../D2F-train/ckpt_llada_instruct_beta_sampling_1.2/llada_ddt_maskteacher/ddt_test/Decoder-llada_ddt_maskteacher-20k",
+        "lora_path": "../D2F-train/ckpt_llada_instruct_cave_in_sampling/llada_ddt_maskteacher/ddt_test/Decoder-llada_ddt_maskteacher-20k",
         "device": "cuda", "dtype": "bfloat16", "max_length": 4096,
         "temperature": 0.0, "top_p": None, "top_k": None, "mask_token_id": 126336,
         "sampling_strategy": "default",

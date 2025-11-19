@@ -6,7 +6,7 @@ nshots="4"
 lengths="512"
 temperatures="0"
 limits="10000"
-block_sizes="32"
+block_sizes="8"
 block_add_thresholds="0.7"
 decoded_token_thresholds="0.95"
 skip_thresholds="0.9"
@@ -32,8 +32,8 @@ humaneval_sampling_strategies="default"
 base_model=GSAI-ML/LLaDA-8B-Instruct
 
 lora_models=(
-    "SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora"
-    #"../D2F-train/ckpt_llada_instruct_beta_sampling_1.2/llada_ddt_maskteacher/ddt_test/Decoder-llada_ddt_maskteacher-20k"
+    #"SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora"
+    "../D2F-train/ckpt_llada_instruct_cave_in_sampling/llada_ddt_maskteacher/ddt_test/Decoder-llada_ddt_maskteacher-20k"
 )
 
 read -ra TASKS_ARRAY <<< "$tasks"

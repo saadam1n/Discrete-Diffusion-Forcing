@@ -233,6 +233,8 @@ def main(args):
 
 
 if __name__ == '__main__':
+    print(f"Is CUDA avail? {torch.cuda.is_available()}")
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='config/dream.yaml')
     args = parser.parse_args()

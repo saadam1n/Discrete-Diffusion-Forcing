@@ -217,6 +217,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
 
             if (block_ids == eos_id).any():
                 last_normal_block = block_idx
+                break
 
         num_normal_blocks = last_normal_block + 1
 
@@ -224,12 +225,16 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         if section_num_blocks > num_normal_blocks:
             section_num_blocks = num_normal_blocks
 
+
         total_num_sections = (num_normal_blocks - global_section_num_blocks + 1)
+
+
         if total_num_sections < 1:
             total_num_sections = 1
 
+
         section_start_list =  [i for i in range(total_num_sections)]
-        #print(f"We found {num_blocks} blocks. Global section num blocks is {global_section_num_blocks}, but we are using {section_num_blocks}. We can use {total_num_sections} in our sample. Budget however is {num_sections}")
+        #print(f"global_section_num_blocks={global_section_num_blocks}\tnum_blocks={num_blocks}\tnum_normal_blocks={num_normal_blocks}\tsection_num_blocks={section_num_blocks}\ttotal_num_sections={total_num_sections}\tnum_sections={num_sections}")
         #print(f"Full list is {section_start_list}")
         random.shuffle(section_start_list)
 
@@ -278,14 +283,13 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
                 next_cave_in_divisor = 1 << block_idx
 
 
+                # save this somewhere (used for loss calculations)
+                remask = (sliced_block_tok_pos % cave_in_divisor != 0)
+
                 # only executes for the last block
                 # for the last block we want everything unmasked 
                 if cave_in_divisor > block_size:
-                    sliced_block_tok_pos = sliced_block_tok_pos + 1
-
-
-                # save this somewhere (used for loss calculations)
-                remask = (sliced_block_tok_pos % cave_in_divisor != 0)
+                    remask = torch.ones_like(remask)
 
                 next_remask = (sliced_block_tok_pos % next_cave_in_divisor != 0)
 
@@ -300,6 +304,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
 
                 percentage_masked = torch.atleast_1d(remask.sum() / remask.numel())
                 percentage_masked = percentage_masked.expand_as(remask)
+                percentage_masked = torch.where(remask, percentage_masked, 0.0)
                 #print(f"{block_size} {cave_in_divisor} {next_cave_in_divisor} REMASK SIZE {remask.shape} {remask} PERCENRAGE MASK SIZE {percentage_masked.shape}")
 
                 sample_p_mask.append(percentage_masked)
@@ -390,6 +395,100 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
     batch_attn_mask = torch.stack(batch_attn_mask)
 
     return batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_token_pos, batch_attn_mask
+
+import torch
+import matplotlib.pyplot as plt
+import numpy as np
+from pathlib import Path
+
+
+def visualize_attention_mask(
+    attention_mask,
+    save_path="attention_mask.png",
+    title="Attention Mask",
+    prompt_length=None,
+    figsize=(12, 10),
+    dpi=150,
+    show_stats=True
+):
+    """
+    Visualize a binary attention mask and save to file.
+    
+    Args:
+        attention_mask: Tensor with shape [batch, seq_len, seq_len] or [seq_len, seq_len]
+                       Values should be 0 (valid) or -inf (masked)
+        save_path: Path to save the PNG file
+        title: Title for the plot
+        prompt_length: Optional int, if provided will draw a line at prompt boundary
+        figsize: Tuple of (width, height) for the figure
+        dpi: Resolution of the saved image
+        show_stats: Whether to show statistics text on the plot
+    
+    Returns:
+        None (saves visualization to file)
+    """
+    # Handle batch/head dimension
+    if attention_mask.dim() == 4:
+        attn_mask_np = attention_mask[0, 0].cpu().numpy()
+    else:
+        attn_mask_np = attention_mask.cpu().numpy()
+    
+    # Convert to binary: 0 for valid positions, 1 for masked
+    vis_mask = np.where(np.isneginf(attn_mask_np), 1, 0)
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Plot the mask
+    im = ax.imshow(vis_mask, cmap='binary', aspect='auto', interpolation='nearest')
+    
+    # Set title and labels
+    ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+    ax.set_xlabel('Key Position', fontsize=12)
+    ax.set_ylabel('Query Position', fontsize=12)
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax, label='0=Valid, 1=Masked', ticks=[0, 1])
+    cbar.ax.set_yticklabels(['Valid (0)', 'Masked (-inf)'])
+    
+    # Draw prompt boundary if provided
+    if prompt_length is not None and prompt_length < vis_mask.shape[0]:
+        ax.axvline(x=prompt_length-0.5, color='red', linestyle='--', 
+                   linewidth=2, label=f'Prompt End (pos {prompt_length})', alpha=0.7)
+        ax.axhline(y=prompt_length-0.5, color='red', linestyle='--', 
+                   linewidth=2, alpha=0.7)
+        ax.legend(loc='upper right')
+    
+    # Add grid
+    ax.grid(True, which='both', color='gray', linewidth=0.5, alpha=0.2)
+    
+    # Set reasonable tick spacing
+    seq_len = vis_mask.shape[0]
+    tick_spacing = max(1, seq_len // 10)
+    ax.set_xticks(range(0, seq_len, tick_spacing))
+    ax.set_yticks(range(0, seq_len, tick_spacing))
+    
+    # Add statistics text if requested
+    if show_stats:
+        total_elements = vis_mask.size
+        masked_elements = vis_mask.sum()
+        sparsity = (masked_elements / total_elements * 100)
+        
+        stats_text = (
+            f"Shape: {vis_mask.shape[0]}×{vis_mask.shape[1]}\n"
+            f"Masked: {masked_elements}/{total_elements} ({sparsity:.1f}%)\n"
+            f"Avg masked per query: {vis_mask.sum(axis=1).mean():.1f}"
+        )
+        
+        ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=dpi, bbox_inches='tight')
+    plt.close()
+    
+    print(f"✓ Attention mask visualization saved to: {save_path}")
 
 if __name__ == '__main__':
     """
