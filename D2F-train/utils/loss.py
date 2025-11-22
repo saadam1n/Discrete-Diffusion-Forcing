@@ -463,11 +463,11 @@ def compute_llada_loss(
     if False and not use_randomized_masking:
         unmasked_divisor = all_p_mask[unmasked_mask]
 
-        #print(f"Uh oh! {all_input_ids.shape} {all_input_ids[masked_mask].shape} {all_input_ids[unmasked_mask].shape}")
+        print(f"Uh oh! {all_input_ids.shape} {all_input_ids[masked_mask].shape} {all_input_ids[unmasked_mask].shape}")
         torch.set_printoptions(threshold=float('inf'))
-        #print(f"ORIG {all_input_ids}")
-        #print(f"MASK {all_input_ids[masked_mask]}")
-        #print(f"UMSK {all_input_ids[unmasked_mask]}")
+        print(f"ORIG {all_input_ids}")
+        print(f"MASK {all_input_ids[masked_mask]}")
+        print(f"UMSK {all_input_ids[unmasked_mask]}")
         
         msk_info = all_input_ids[masked_mask] 
 

@@ -232,6 +232,10 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         if total_num_sections < 1:
             total_num_sections = 1
 
+        # we may have way fewer usable sections due to EOS.
+        # in this case, we cut down the number of sections
+        if num_sections > total_num_sections:
+            num_sections = total_num_sections
 
         section_start_list =  [i for i in range(total_num_sections)]
         #print(f"global_section_num_blocks={global_section_num_blocks}\tnum_blocks={num_blocks}\tnum_normal_blocks={num_normal_blocks}\tsection_num_blocks={section_num_blocks}\ttotal_num_sections={total_num_sections}\tnum_sections={num_sections}")

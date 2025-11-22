@@ -294,6 +294,7 @@ def ntis_bwd_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_
 
     if top_p is not None and top_p < 1: logits = top_p_logits(logits, top_p)
 
+    top_k = 4
     if top_k is not None: logits = top_k_logits(logits, top_k)
 
     # define masking schedule ahead of time
@@ -309,10 +310,8 @@ def ntis_bwd_sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, num_
 
 
     if True:
-        x0 = torch.argmax(logits, dim=-1)
-
-        # for cs 4650 project
-        x0 = torch.where(cur_x_t != mask_token_id, cur_x_t, x0)
+        x0 = None #torch.argmax(logits, dim=-1)
+        x0 = dists.Categorical(logits=logits).sample()
     else:
         dist = dists.Categorical(logits=logits)
         x0 = torch.where(cur_x_t == mask_token_id, dist.sample(), cur_x_t)

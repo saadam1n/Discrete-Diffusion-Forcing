@@ -4,7 +4,7 @@ training_mode: 'llada'  # 'llada' or 'dream'
 # Model and data path configuration
 paths:
   model: 'GSAI-ML/LLaDA-8B-Instruct'
-  experiment: 'ckpt_llada_instruct_test_ffn_init'
+  experiment: 'ckpt_llada_instruct_dummy_exp'
   data:
     bs: 'Lansechen/bs17k_collection_filtered_hard_maxlength600'
     bs_easy: 'Lansechen/bs17k_collection_filtered_easy_maxlength600'
