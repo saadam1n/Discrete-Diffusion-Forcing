@@ -7,3 +7,5 @@ D2F-train/D2F-llada-base
 
 D2F-eval/eval_*/
 *.gradio
+
+D2F-train/attention_mask_analysis.png

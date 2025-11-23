@@ -177,7 +177,9 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
     section_token_cost = global_section_num_blocks * block_size
 
     # what ratio of the original part of the context length dedicated to the response is repuprosed towards sections
-    SECTION_BUDGET=0.5
+    SECTION_BUDGET=0.4
+    use_prediction_block = True
+
 
     block_tok_pos = torch.arange(block_size, dtype=torch.int32, device=device)
 
@@ -187,6 +189,12 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
     batch_mask_indices = []
     batch_need_unmask = []
     batch_token_pos = []
+
+    if use_prediction_block:
+        batch_reindex = []
+    else:
+        batch_reindex = None
+
     batch_attn_mask = []
 
     for b in range(B):
@@ -252,13 +260,18 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
 
         sample_input_ids = [sample_raw_input_ids]
         sample_noisy_batch = [sample_raw_input_ids]
-        sample_p_mask = [torch.zeros_like(sample_raw_input_ids)]
+        sample_p_mask = [torch.zeros_like(sample_raw_input_ids, dtype=torch.float)]
         sample_mask_indices = [torch.zeros_like(sample_raw_input_ids)]
         sample_need_unmask = [torch.zeros_like(sample_raw_input_ids)]
         sample_token_pos = [torch.arange(input_ids[b].shape[-1], device=input_ids.device)]
 
+
+        if use_prediction_block:
+            sample_reindex = [torch.zeros_like(sample_raw_input_ids)]
+
         global_start_pos = L
         section_global_start_positions = []
+
 
         for start_block in section_start_list:
             start = prompt_len + start_block * block_size
@@ -267,17 +280,32 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
             #print(f"BLOCK IDX {start_block}\tBLOCK START AT {start}\tAKA RESPONSE POS {start - prompt_len}\tTOKEN VALUE {input_ids[b, start].item()}")
             #print(f"\tEND AT {end}")
 
-            sample_token_pos.append(torch.arange(start, end, device=input_ids.device))
 
             translated_end = end - start
 
-            section_input_ids = input_ids[b, start:end]
+            all_section_input_ids = []
+            all_section_noisy_batch = []
 
-            section_noisy_batch = section_input_ids.clone()
+
 
             for block_idx in range(section_num_blocks):
                 sublock_start = block_idx * block_size
                 sublock_end = min(sublock_start + block_size, translated_end)
+
+                read_start = sublock_start + start
+                read_end = sublock_end + start
+                section_input_ids = input_ids[b, read_start:read_end]
+                section_noisy_batch = section_input_ids.clone()
+
+                sample_token_pos.append(torch.arange(read_start, read_end, device=input_ids.device))
+
+                # we will need to reindex before masking unfortunately 
+                if use_prediction_block:
+                    sample_token_pos.append(torch.arange(read_start, read_end, device=input_ids.device))
+
+
+                all_section_input_ids.append(section_input_ids)
+                all_section_noisy_batch.append(section_noisy_batch)
 
                 #print(f"\tSUBLOCK {sublock_start} -> {sublock_end}")
 
@@ -302,7 +330,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
 
 
 
-                sublock_noisy_batch = section_noisy_batch[sublock_start:sublock_end]
+                sublock_noisy_batch = section_noisy_batch#section_noisy_batch[sublock_start:sublock_end]
 
                 sublock_noisy_batch[remask] = mask_id
 
@@ -311,16 +339,42 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
                 percentage_masked = torch.where(remask, percentage_masked, 0.0)
                 #print(f"{block_size} {cave_in_divisor} {next_cave_in_divisor} REMASK SIZE {remask.shape} {remask} PERCENRAGE MASK SIZE {percentage_masked.shape}")
 
+                # in training, we copy the output of prediction block back to register block
+
+                if use_prediction_block:
+                    sample_reindex.append(torch.full_like(section_input_ids, fill_value=sublock_end - sublock_start))
+
                 sample_p_mask.append(percentage_masked)
                 sample_mask_indices.append(remask)
                 sample_need_unmask.append(need_unmask)
 
-            # append this input ids and noisy batch to some list
-            sample_input_ids.append(section_input_ids)
-            sample_noisy_batch.append(section_noisy_batch)
+                # doesn't really matter since we don't train this
+                if use_prediction_block:
+                    sample_p_mask.append(torch.zeros_like(percentage_masked))
+                    sample_mask_indices.append(torch.zeros_like(remask))
+                    sample_need_unmask.append(torch.zeros_like(need_unmask))
+
+                    sample_reindex.append(torch.zeros_like(sample_reindex[-1]))
+
+
+                # append this input ids and noisy batch to some list
+                sample_noisy_batch.append(section_noisy_batch)
+                sample_input_ids.append(section_input_ids)
+
+                if use_prediction_block:
+                    # use the prediction token
+                    sample_noisy_batch.append(torch.full_like(section_noisy_batch, fill_value=126464))
+                    # we don't really care for register block
+                    sample_input_ids.append(torch.full_like(section_noisy_batch, fill_value=126336))
+
 
             section_global_start_positions.append(global_start_pos)
-            global_start_pos += section_input_ids.shape[-1]
+
+            total_len = end - start
+            if use_prediction_block:
+                total_len *= 2
+
+            global_start_pos += total_len
 
         # now create a list of everything
         sample_input_ids = torch.cat(sample_input_ids, dim=0)
@@ -329,6 +383,12 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         sample_mask_indices = torch.cat(sample_mask_indices, dim=0)
         sample_need_unmask = torch.cat(sample_need_unmask, dim=0)
         sample_token_pos = torch.cat(sample_token_pos, dim=0)
+
+        if use_prediction_block:
+            sample_reindex = torch.cat(sample_reindex, dim=0)
+
+            # for use with torch.gather
+            sample_reindex = sample_reindex + torch.arange(0, sample_reindex.shape[-1], device=sample_reindex.device)
 
         L_P = sample_input_ids.shape[-1]
 
@@ -365,6 +425,11 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
                 start -= first_block_start
                 end -= first_block_start
 
+                # everything is doubled in the prediction block mode
+                if use_prediction_block:
+                    start *= 2
+                    end *= 2
+
                 # translate to global coords
                 start += mask_start_pos
                 end += mask_start_pos
@@ -388,6 +453,10 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
         batch_mask_indices.append(sample_mask_indices)
         batch_need_unmask.append(sample_need_unmask)
         batch_token_pos.append(sample_token_pos)
+
+        if use_prediction_block:
+            batch_reindex.append(sample_reindex)
+
         batch_attn_mask.append(attn_mask)
 
     batch_input_ids = torch.stack(batch_input_ids)
@@ -396,9 +465,13 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
     batch_mask_indices = torch.stack(batch_mask_indices).bool()
     batch_need_unmask = torch.stack(batch_need_unmask).bool()
     batch_token_pos = torch.stack(batch_token_pos)
+
+    if use_prediction_block:
+        batch_reindex = torch.stack(batch_reindex)
+
     batch_attn_mask = torch.stack(batch_attn_mask)
 
-    return batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_token_pos, batch_attn_mask
+    return batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_token_pos, batch_reindex, batch_attn_mask
 
 import torch
 import matplotlib.pyplot as plt
@@ -662,7 +735,7 @@ if __name__ == '__main__':
     print("RUNNING cave_in_generate")
     print("="*80)
 
-    batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_token_pos, batch_attn_mask = cave_in_generate(
+    batch_input_ids, batch_noisy_batch, batch_p_mask, batch_mask_indices, batch_need_unmask, batch_token_pos, batch_reindex, batch_attn_mask = cave_in_generate(
         input_ids, mask_id, block_size, prompt_length_tensor, eos_id
     )
 
@@ -672,6 +745,9 @@ if __name__ == '__main__':
     print(f"Mask indices shape: {batch_mask_indices.shape}")
     print(f"Need unmask shape: {batch_need_unmask.shape}")
     print(f"Attention mask shape: {batch_attn_mask.shape}")
+
+    print(f"TOKEN POS:\n{batch_token_pos}")
+    print(f"REINDEX  :\n{batch_reindex}")
 
     print(f"\nNoisy batch (first 30 tokens): {batch_noisy_batch[0, :30].tolist()}")
     print(f"Mask indices (first 30): {batch_mask_indices[0, :30].tolist()}")
@@ -687,12 +763,18 @@ if __name__ == '__main__':
     print("="*80)
     print(noisy_decoded)
     print("="*80)
+    noisy_decoded = tokenizer.batch_decode(batch_input_ids[0], skip_special_tokens=False)
+    print(noisy_decoded)
+    print("="*80)
 
     # Decode the noisy batch to see what it looks like
     noisy_decoded = tokenizer.decode(batch_noisy_batch[0], skip_special_tokens=False)
     print("\n" + "="*80)
     print("NOISY BATCH (with masks):")
     print("="*80)
+    print(noisy_decoded)
+    print("="*80)
+    noisy_decoded = tokenizer.batch_decode(batch_noisy_batch[0], skip_special_tokens=False)
     print(noisy_decoded)
     print("="*80)
 
@@ -704,6 +786,10 @@ if __name__ == '__main__':
     print("="*80)
     print(noisy_decoded)
     print("="*80)
+    noisy_decoded = tokenizer.batch_decode(batch_noisy_batch_stepped[0], skip_special_tokens=False)
+    print(noisy_decoded)
+    print("="*80)
+
 
     print(f"PERCENTAGE MASKED:\n{batch_p_mask[0]}")
 

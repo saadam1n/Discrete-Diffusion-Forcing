@@ -174,15 +174,24 @@ def ntis_rl_sample_gt(logits, noisy_batch=None, input_ids=None, prompt_mask=None
 
     return next_noisy_batch
 
-def ntis_rl_sample_qxi(logits, noisy_batch=None, input_ids=None, prompt_mask=None, mask_token_id=None, beta=1.2, k=8, need_unmask=None):
+def ntis_rl_sample_qxi(logits, noisy_batch=None, input_ids=None, prompt_mask=None, mask_token_id=None, beta=1.2, k=8, need_unmask=None, logit_reindex=None):
     """
     returns rl_noisy_batch for a second round of training
     """
+
 
     # set to zero for no temperature scaling
     temprature = 0.0
     if temprature > 0.0:
         logits = logits / temprature
+
+    if logit_reindex is not None:
+        B, S, V = logits.shape
+
+        logit_reindex_expanded = logit_reindex.unsqueeze(-1).expand(-1, -1, V)
+
+        # Gather along dimension 1 (S dimension)
+        logits = torch.gather(logits, dim=1, index=logit_reindex_expanded)
 
     if False:
         # B, L, V (where V is output vocab size)
@@ -328,7 +337,7 @@ def compute_llada_loss(
 
 
 
-    use_randomized_masking = (random.random() < 0.1)
+    use_randomized_masking = (random.random() < 0.0)
 
     if use_randomized_masking:
         B, L = input_ids.shape
@@ -347,11 +356,12 @@ def compute_llada_loss(
         # use default implementation
         custom_rope_pos = None
         need_unmask = None
+        logit_reindex = None
     else:
         #print("Building attention mask...")
         #start_attn_mask = time.time()
 
-        input_ids, noisy_batch, p_mask, masked_indices, need_unmask, custom_rope_pos, attention_mask = cave_in_generate(
+        input_ids, noisy_batch, p_mask, masked_indices, need_unmask, custom_rope_pos, logit_reindex, attention_mask = cave_in_generate(
             input_ids=input_ids, mask_id=mask_id, block_size=block_size, prompt_lengths=question_length, eos_id=eos_id
         )
         #print(f"Done, attn mask took {time.time() - start_attn_mask}s to build")
@@ -418,7 +428,8 @@ def compute_llada_loss(
             input_ids=input_ids,
             prompt_mask=prompt_mask,
             mask_token_id=mask_id,
-            need_unmask=need_unmask
+            need_unmask=need_unmask,
+            logit_reindex=logit_reindex
         ).clone().detach()
 
         #import pdb;

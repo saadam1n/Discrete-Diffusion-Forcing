@@ -87,7 +87,10 @@ def patch_embedding(transformer: nn.Module):
 
     with torch.no_grad():
         remb.reg_modifier_table.weight.zero_()
-        remb.pred_token.weight = nn.Parameter(wte.weight[126336, :].unsqueeze(0).clone())
+
+        orig_mask_weight = wte.weight[126336, :].unsqueeze(0).clone()
+
+        remb.pred_token.weight = nn.Parameter(orig_mask_weight + torch.randn_like(orig_mask_weight))
 
         remb.reg_modifier_table.weight.requires_grad = True
         remb.pred_token.weight.requires_grad = True
