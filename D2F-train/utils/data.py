@@ -114,7 +114,7 @@ def read_bs_easy(config=None):
         data.append({"question": item['question'], "answer": item['qwen7b_answer'], "source": "bs_easy"})
     return data
 
-
+from tqdm import tqdm
 def read_numina(config=None):
     data=[]
 
@@ -122,7 +122,7 @@ def read_numina(config=None):
 
     print(f"Loading dataset {dataset_path}")
     dataset=load_dataset(dataset_path, split="train")
-    for item in dataset:
+    for item in tqdm(dataset, desc="Filtering amc_aime"):
         # idk, these problems were hard when I was in high school
         # high quality problems garaunteed (also makes the dataset way smaller)
         if item['source'] != 'amc_aime':

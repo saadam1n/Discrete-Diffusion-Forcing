@@ -444,6 +444,9 @@ def compute_llada_loss(
     all_noisy_batch = torch.cat(all_noisy_batch, dim=0).flatten(0, 1)
     all_input_ids = input_ids.repeat(num_rl_iterations + 1, 1)
 
+    # increase power of p_mask to ensure earlier tokens are more forced than later tokens
+    p_mask = p_mask ** 2
+
     assert B == 1
     training_mask = ~prompt_mask
     training_mask = training_mask.expand_as(all_input_ids)

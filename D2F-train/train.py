@@ -45,55 +45,7 @@ def get_accelerator(config, global_config):
 
     return accelerator, output_dir
 
-import torch.nn as nn
-class RegisterEmbedding(nn.Module):
-    """
-    original mask id: 126336
-    register token id: 126464
-    """
-    def __init__(self, wte, mask_token_id, pred_token_id):
-        super(RegisterEmbedding, self).__init__()
 
-        # keep hardcoded for now
-        self.embedding_dim = wte.weight.shape[-1]
-        self.mask_token_id = mask_token_id
-        self.pred_token_id = pred_token_id
-
-        self.wte = wte
-        self.reg_modifier_table = nn.Embedding(num_embeddings=2, embedding_dim=self.embedding_dim)
-        self.pred_token = nn.Embedding(num_embeddings=1, embedding_dim=self.embedding_dim)
-
-    def forward(self, x):
-        is_mask = (x == self.mask_token_id).int()
-        is_pred = (x == self.pred_token_id)
-    
-        x_no_pred = torch.where(is_pred, self.mask_token_id, x)
-
-        embedding = self.wte(x_no_pred) 
-
-        embedding = embedding + self.reg_modifier_table(is_mask)
-
-        prediction = self.pred_token(torch.zeros_like(x))
-
-        embedding = torch.where(is_pred.unsqueeze(-1), prediction, embedding)
-
-        return embedding
-
-def patch_embedding(transformer: nn.Module):
-    wte = transformer.wte
-    remb = RegisterEmbedding(wte, 126336, 126464)
-
-    transformer.wte = remb
-
-    with torch.no_grad():
-        remb.reg_modifier_table.weight.zero_()
-
-        orig_mask_weight = wte.weight[126336, :].unsqueeze(0).clone()
-
-        remb.pred_token.weight = nn.Parameter(orig_mask_weight + torch.randn_like(orig_mask_weight))
-
-        remb.reg_modifier_table.weight.requires_grad = True
-        remb.pred_token.weight.requires_grad = True
 
 
 def main(args):
@@ -121,7 +73,6 @@ def main(args):
         # if accelerator.is_main_process:
         #     print(f'model ckpt loaded from {config.train.head_resume_path}')
 
-    patch_embedding(denoiser.base_model.model.model.transformer)
 
     print(f"Model details:\n{denoiser}")
     for name, param in denoiser.named_parameters():
@@ -273,8 +224,10 @@ def main(args):
             accelerator.wait_for_everyone()
 
             if global_step > 0 and global_step % config.train.save_every == 0 and accelerator.is_main_process:
+            #if  accelerator.is_main_process:
                 denoiser.eval()
                 decoder_state_dict = accelerator.unwrap_model(denoiser).save_pretrained(os.path.join(output_dir, f"Decoder-{config.train.exp_name}-{global_step // 1000}k"))
+                #exit(0)
                 # lmhead_state_dict = accelerator.unwrap_model(denoiser).lm_head.state_dict()
                 # torch.save(lmhead_state_dict, os.path.join(output_dir, f"LMhead-{config.train.exp_name}-{global_step // 1000}k"))
             accelerator.wait_for_everyone()
