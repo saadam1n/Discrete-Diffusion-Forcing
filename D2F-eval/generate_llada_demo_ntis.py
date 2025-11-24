@@ -19,6 +19,64 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 from model_cache.llada.modeling_llada import LLaDAModelLM
 from model_cache.llada.configuration_llada import LLaDAConfig
 
+
+import torch
+import torch.nn as nn
+class RegisterEmbedding(nn.Module):
+    """
+    original mask id: 126336
+    register token id: 126464
+    """
+    def __init__(self, wte, mask_token_id, pred_token_id):
+        super(RegisterEmbedding, self).__init__()
+
+        # keep hardcoded for now
+        self.embedding_dim = wte.weight.shape[-1]
+        self.mask_token_id = mask_token_id
+        self.pred_token_id = pred_token_id
+
+        self.original_wte = wte
+        self.reg_modifier_table = nn.Embedding(num_embeddings=2, embedding_dim=self.embedding_dim)
+        self.pred_token = nn.Embedding(num_embeddings=1, embedding_dim=self.embedding_dim)
+
+    def forward(self, x):
+        is_mask = (x == self.mask_token_id).int()
+        is_pred = (x == self.pred_token_id)
+    
+        x_no_pred = torch.where(is_pred, self.mask_token_id, x)
+
+        embedding = self.original_wte(x_no_pred) 
+
+        embedding = embedding + self.reg_modifier_table(is_mask)
+
+        prediction = self.pred_token(torch.zeros_like(x))
+
+        embedding = torch.where(is_pred.unsqueeze(-1), prediction, embedding)
+
+        #print(f"Returning dtye {embedding.dtype}")
+
+        embedding = embedding.to(torch.bfloat16)
+
+        return embedding
+
+def patch_embedding(transformer: nn.Module):
+    wte = transformer.wte
+    remb = RegisterEmbedding(wte, 126336, 126464)
+
+    transformer.wte = remb
+
+    with torch.no_grad():
+        remb.reg_modifier_table.weight.zero_()
+
+        orig_mask_weight = wte.weight[126336, :].unsqueeze(0).clone()
+
+        remb.pred_token.weight = nn.Parameter(orig_mask_weight + torch.randn_like(orig_mask_weight))
+
+        remb.reg_modifier_table.weight.requires_grad = True
+        remb.pred_token.weight.requires_grad = True
+        # may re-enable grad calculation, we don't want that
+        remb.original_wte.weight.requires_grad = False
+
 # --- Helper Functions (Unchanged) ---
 def set_seed(seed):
     torch.manual_seed(seed); random.seed(seed); np.random.seed(seed); 
@@ -404,7 +462,12 @@ class DreamLoRAInference:
 
     def _setup_model(self, pretrained_path, lora_path):
         config = LLaDAConfig.from_pretrained(pretrained_path)
-        self.model = LLaDAModelLM.from_pretrained(pretrained_path, config=config, torch_dtype=self.target_dtype).eval()
+        self.model = LLaDAModelLM.from_pretrained(pretrained_path, config=config, torch_dtype=self.target_dtype)
+
+        patch_embedding(self.model.model.transformer)
+
+        self.model = self.model.eval()
+
         self.model = PeftModel.from_pretrained(self.model, lora_path)
 
         print(f" MOVING TO DEVICE {self.device}")
@@ -624,8 +687,22 @@ class DreamLoRAInference:
                     last_block_id = max(block_states.keys())
                     new_block_id = last_block_id + 1; new_start_pos = x_t.shape[1]
                     if new_start_pos + block_size <= self.max_length:
-                        x_t = torch.cat([x_t, torch.full((1, block_size), self.mask_token_id, device=self.device, dtype=torch.long)], dim=1)
-                        block_states[new_block_id] = {'start_pos': new_start_pos, 'end_pos': new_start_pos + block_size, 'mask_count': block_size, 'total_masks': block_size, 'state': 'active', 'is_complete': False, "sample_prob": None}
+                        x_t_temp = [x_t, torch.full((1, block_size), self.mask_token_id, device=self.device, dtype=torch.long)]
+
+                        x_t_temp.append(torch.full((1, block_size), 126464, device=self.device, dtype=torch.long))
+
+                        x_t = torch.cat(x_t_temp, dim=1)
+
+                        custom_rope_pos = [
+                            torch.arange(0, new_start_pos, device=self.device), 
+                            torch.arange(new_start_pos, new_start_pos+block_size, device=self.device), 
+                            torch.arange(new_start_pos, new_start_pos+block_size, device=self.device), 
+                        ]
+                        custom_rope_pos = torch.cat(custom_rope_pos, dim=-1)
+
+                        print(f"SHAPES {x_t.shape} {custom_rope_pos.shape}")
+
+                        block_states[new_block_id] = {'start_pos': new_start_pos, 'end_pos': new_start_pos + block_size * 2, 'reg_end': new_start_pos + block_size, 'mask_count': block_size, 'total_masks': block_size, 'state': 'active', 'is_complete': False, "sample_prob": None}
                         current_blocks += 1
 
 
@@ -659,7 +736,7 @@ class DreamLoRAInference:
 
 
             attention_mask = extract_attention_mask(full_attention_mask, process_start_pos, input_seq.shape[1], cache_length)
-            outputs = self.model(input_seq, attention_bias=attention_mask, past_key_values=past_key_values, use_cache=True, update_kvcache=update_kvcache + cache_length)
+            outputs = self.model(input_seq, attention_bias=attention_mask, past_key_values=past_key_values, use_cache=True, update_kvcache=update_kvcache + cache_length, custom_rope_pos=custom_rope_pos)
             
             # active is currently being decoded
             # to_cache is we need to create kv_cache
@@ -679,6 +756,9 @@ class DreamLoRAInference:
                 block_all_logits = outputs.logits[0, true_start:true_end, :]
                 cur_x_t = x_t[0, state['start_pos']:state['end_pos']]
 
+                cur_x_t = cur_x_t.chunk(chunks=2, dim=-1)[0]
+                block_all_logits = block_all_logits.chunk(chunks=2, dim=-2)[1]
+
 
                 # for now, only one block will be active, so we don't need to keep track of ift iterations on a per-block basis
                 x0, next_sample_prob = ntis_bwd_sample_tokens(
@@ -692,7 +772,7 @@ class DreamLoRAInference:
                     cur_x_t, 
                     state["sample_prob"]
                 )
-                x_t[0, state["start_pos"]:state["end_pos"]] = x0
+                x_t[0, state["start_pos"]:state["reg_end"]] = x0
 
                 state["sample_prob"] = next_sample_prob
 
@@ -763,7 +843,9 @@ if __name__ == "__main__":
     config = {
         "pretrained_path": "GSAI-ML/LLaDA-8B-Instruct",
         #"lora_path": "SJTU-Deng-Lab/D2F_LLaDA_Instruct_8B_Lora",
-        "lora_path": "../D2F-train/ckpt_llada_instruct_test_ffn_init/llada_ddt_maskteacher/ddt_test/Decoder-llada_ddt_maskteacher-20k",
+
+        # TESTING ON 12K! FIX!
+        "lora_path": "../D2F-train/ckpt_llada_instruct_register_cache/llada_ddt_maskteacher/ddt_test/Decoder-llada_ddt_maskteacher-12k",
         "device": "cuda", "dtype": "bfloat16", "max_length": 4096,
         "temperature": 0.0, "top_p": None, "top_k": 4, "mask_token_id": 126336,
         "sampling_strategy": "default",

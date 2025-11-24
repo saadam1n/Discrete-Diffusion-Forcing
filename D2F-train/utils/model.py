@@ -45,7 +45,7 @@ class RegisterEmbedding(nn.Module):
         self.mask_token_id = mask_token_id
         self.pred_token_id = pred_token_id
 
-        self.wte = wte
+        self.original_wte = wte
         self.reg_modifier_table = nn.Embedding(num_embeddings=2, embedding_dim=self.embedding_dim)
         self.pred_token = nn.Embedding(num_embeddings=1, embedding_dim=self.embedding_dim)
 
@@ -55,7 +55,7 @@ class RegisterEmbedding(nn.Module):
     
         x_no_pred = torch.where(is_pred, self.mask_token_id, x)
 
-        embedding = self.wte(x_no_pred) 
+        embedding = self.original_wte(x_no_pred) 
 
         embedding = embedding + self.reg_modifier_table(is_mask)
 
@@ -81,7 +81,7 @@ def patch_embedding(transformer: nn.Module):
         remb.reg_modifier_table.weight.requires_grad = True
         remb.pred_token.weight.requires_grad = True
         # may re-enable grad calculation, we don't want that
-        remb.wte.weight.requires_grad = False
+        remb.original_wte.weight.requires_grad = False
 
 def get_llada(config):
     # Use path from config, use default path if no config
