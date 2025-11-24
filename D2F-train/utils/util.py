@@ -177,7 +177,7 @@ def cave_in_generate(input_ids, mask_id, block_size, prompt_lengths, eos_id):
     section_token_cost = global_section_num_blocks * block_size
 
     # what ratio of the original part of the context length dedicated to the response is repuprosed towards sections
-    SECTION_BUDGET=0.4
+    SECTION_BUDGET=0.3
     use_prediction_block = True
 
 
