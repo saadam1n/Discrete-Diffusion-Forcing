@@ -1,5 +1,5 @@
 import torch
-from utils.util import forward_process_length, shift_logits,forward_process, cave_in_generate, visualize_attention_mask
+from utils.util import forward_process_length, shift_logits,forward_process, cave_in_generate, visualize_attention_mask, idk_what_to_name_this
 import torch.nn.functional as F
 
 def compute_loss_by_config(
@@ -238,6 +238,9 @@ def ntis_rl_sample_qxi(logits, noisy_batch=None, input_ids=None, prompt_mask=Non
 
     return next_noisy_batch
 
+def tidar_style_mask(L, prompt_lengths):
+    pass
+
 def compute_loss(
         input_ids,
         denoiser,
@@ -335,6 +338,60 @@ def compute_llada_loss(
     # I wonder how people train models with 1 million context length
     #input_ids = torch.ones(1, 32768, dtype=input_ids.dtype, device=input_ids.device)
 
+    B, L = input_ids.shape
+    assert B == 1, "The author of this code cannot give enough of a shit anymore to write properly vectorized code"
+
+
+    # reset token poisitons
+    token_positions = torch.arange(L * 2, device=input_ids.device)
+    token_positions = token_positions % L
+
+    # TODO: eventually do a RL style thing where we sample (without tracking gradients) and ask model to fix it
+
+    # items before prompt lenght are already protected
+    noisy_batch, masked_indices, p_mask = idk_what_to_name_this(input_ids, mask_id=mask_id,prompt_lengths=question_length, block_size=block_size,eos_id=eos_id)
+    noisy_batch = noisy_batch.to(denoiser.device)
+
+    attention_mask=build_fucking_attn_mask(noisy_batch, question_length, block_size, device=noisy_batch.device)
+    attention_mask=attention_mask.to(torch.float16)
+
+    denoiser.train()
+    logits=denoiser(noisy_batch,attention_bias=attention_mask).logits
+
+    # (B, 2 * L, V) -> (B, L, V))
+    logits = torch.chunk(logits, chunks=2, dim=1)
+    logits = logits[1]
+
+    # logits=shift_logits(logits)
+
+    # original D2F code
+    if self_align:
+        print("using self align")
+        with torch.no_grad():
+            with denoiser.disable_adapter():
+                denoiser.eval()
+
+                # (B, 2*L) -> (B, L)
+                original_noisy_batch = torch.chunk(noisy_batch, chunks=2, dim=1)
+                original_noisy_batch = original_noisy_batch[1]
+
+                ref_logits=denoiser(noisy_batch,attention_bias=torch.zeros([1,1,noisy_batch.shape[1],noisy_batch.shape[1]],dtype=torch.float16,device=denoiser.device)).logits
+                ref_logits = torch.nn.functional.softmax(ref_logits, dim=-1)
+        token_loss_2 = F.cross_entropy(logits[masked_indices], ref_logits[masked_indices], reduction='none') / p_mask[masked_indices]
+    else:
+        token_loss_2= F.cross_entropy(logits[masked_indices], input_ids[masked_indices], reduction='none') / p_mask[masked_indices]
+
+
+    losses = {
+        'loss': token_loss_2.mean(),
+        'loss_masked': None,
+        'loss_unmasked': None
+    }
+
+    return losses 
+
+    return
+    # caution! spaghetti code below!
 
 
     use_randomized_masking = (random.random() < 0.0)
@@ -541,6 +598,32 @@ def build_custom_float_attention_mask(input_ids, prompt_length, block_size, devi
                 attn_mask[i,:,block_start:block_end, prev_start:prev_end] = 0.0
 
     return attn_mask  # [seq_len, seq_len], float, 0.0 for allowed, -inf for disallowed
+
+def build_fucking_attn_mask(input_ids, prompt_length, block_size, device=None):
+    B,L= input_ids.shape
+
+    attn_mask = torch.full((1,1, 2 * L, 2 * L), float('-inf'), dtype=torch.float32, device=device)
+
+    attn_mask[:, :, :L, :L] = torch.triu(torch.full((L, L), float('-inf'), device=device), diagonal=1)
+
+    # this is very lazy and completely ignores issues with the prompt but imo this is easier
+    # idgaf enough about this project anymore
+    num_blocks = B // block_size
+    for i in range(num_blocks):
+        offset_cache = num_blocks * block_size
+        offset_block_s = offset_cache + L
+        offset_block_e = offset_block_s + block_size
+
+        # attend to cache
+        attn_mask[:, :, offset_block_s:offset_block_e, :offset_cache] = 0
+
+        # attend to self
+        attn_mask[:, :, offset_block_s:offset_block_e, offset_block_s:offset_block_e] = 0
+
+    attn_mask = attn_mask.expand(B, -1, -1, -1)
+
+    return attn_mask  
+
 if __name__ == "__main__":
     seq_len = 10
     input_ids = torch.randint(0, 100, (2, seq_len))  # 示例输入

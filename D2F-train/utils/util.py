@@ -85,6 +85,65 @@ def forward_process_length(input_ids, mask_id, block_size, prompt_lengths,eos_id
 
     return noisy_batch, masked_indices, p_mask_tensor
 
+import random
+def realistic_token_mask_prob(B, num_blocks, block_size, device):
+    """
+    Might do things a bit differently than rand in the future to move tokens more towards the left
+    """
+
+    # Uniform prob
+    umask_prob = torch.rand(B, num_blocks, block_size, device=device)
+
+    # Sorted prob, have tokens with a lower probability of being masked come first
+    smask_prob = torch.rand(B, num_blocks, block_size, device=device)
+    smask_prob = torch.sort(smask_prob, dim=-1).values
+
+    # CPU side random
+    # not fixed since we want it to work with a varitey of scenarios
+    pick_s_prob = random.random()
+    token_mask_prob_type = torch.rand(B, num_blocks, 1, device=device) < pick_s_prob
+
+    # torch please don't be a bitch and not broadcast for this operation like I swore you have before
+    token_mask_prob = torch.where(token_mask_prob_type, smask_prob, umask_prob)
+
+    return token_mask_prob
+
+def idk_what_to_name_this(input_ids, mask_id, block_size, prompt_lengths, eos_id=None):
+    """
+    Args:
+        input_ids: (B, L)
+        prompt_lengths: (B,)
+    Returns:
+        noisy_batch, masked_indices, p_mask_tensor
+    """
+    B, L = input_ids.shape
+    assert B == 1, "fuck you"
+
+
+    device = input_ids.device
+    masked_indices = torch.zeros_like(input_ids,dtype=torch.bool)
+    p_mask_tensor = torch.zeros((B, L), device=device)
+
+    num_blocks = L // block_size
+
+    # create mask probability for each thing
+    min_p_mask = 0.2
+    max_p_mask = 0.7
+    p_mask_tensor = torch.rand(B, num_blocks, 1, device=device) * (max_p_mask - min_p_mask) + min_p_mask
+    
+    p_mask_tensor = p_mask_tensor.expand(B, num_blocks, block_size).flatten(1)
+
+    token_mask_prob = realistic_token_mask_prob(B, num_blocks, block_size, device)
+
+    masked_indices = torch.logical_and(token_mask_prob < p_mask_tensor, torch.arange(B, L) >= prompt_lengths.unsqueeze(-1))
+
+    masked_input_ids = torch.where(masked_indices, mask_id, input_ids)
+
+    noisy_batch = torch.cat((input_ids, masked_input_ids), dim=1)
+
+
+    return noisy_batch, masked_indices, p_mask_tensor
+
 # def forward_process_length(input_ids, mask_id, block_size, prompt_lengths, p_min=0.2, p_max=0.9):
 #     """
 #     返回每个 token 的实际 mask 概率 tensor（非prompt区域），其余为0。

@@ -66,6 +66,8 @@ class RegisterEmbedding(nn.Module):
         return embedding
 
 def patch_embedding(transformer: nn.Module):
+    print("CAUTION! PATCHING EMBEDDING -> ARE YOU SURE YOU WANT TO DO THIS?")
+
     wte = transformer.wte
     remb = RegisterEmbedding(wte, 126336, 126464)
 
@@ -93,7 +95,7 @@ def get_llada(config):
 
     print([name for name, _ in model.named_modules()])
     print(model)
-    patch_embedding(model.model.transformer)
+    #patch_embedding(model.model.transformer)
 
     # print(model,"model
     # print(model)
